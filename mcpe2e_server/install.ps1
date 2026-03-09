@@ -45,7 +45,7 @@ if ($CurrentPath -notlike "*$InstallDir*") {
 # ── Register with Claude Code ─────────────────────────────────────────────────
 if (Get-Command claude -ErrorAction SilentlyContinue) {
     Write-Host "Registering with Claude Code..."
-    claude mcp add mcpe2e --command "$BinaryPath" --env TESTBRIDGE_URL=http://localhost:7778
+    claude mcp add mcpe2e -e TESTBRIDGE_URL=http://localhost:7778 -- "$BinaryPath"
     Write-Host ""
     Write-Host "✓ Done! mcpe2e is registered in Claude Code."
     Write-Host ""
@@ -55,7 +55,7 @@ if (Get-Command claude -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "Claude Code CLI not found. Register manually:"
     Write-Host ""
-    Write-Host "  claude mcp add mcpe2e --command `"$BinaryPath`" --env TESTBRIDGE_URL=http://localhost:7778"
+    Write-Host "  claude mcp add mcpe2e -e TESTBRIDGE_URL=http://localhost:7778 -- `"$BinaryPath`""
     Write-Host ""
     Write-Host "Then connect your device:"
     Write-Host "  Android: adb forward tcp:7778 tcp:7777"

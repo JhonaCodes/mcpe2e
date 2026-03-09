@@ -72,22 +72,18 @@ BINARY_PATH="${INSTALL_DIR}/${BINARY_NAME}"
 
 if command -v claude &>/dev/null; then
   echo "Registering with Claude Code..."
-  claude mcp add mcpe2e \
-    --command "$BINARY_PATH" \
-    --env TESTBRIDGE_URL=http://localhost:7778
+  claude mcp add mcpe2e -e TESTBRIDGE_URL=http://localhost:7778 -- "$BINARY_PATH"
   echo ""
   echo "✓ Done! mcpe2e is registered in Claude Code."
   echo ""
   echo "Connect your device:"
   echo "  Android: adb forward tcp:7778 tcp:7777"
   echo "  iOS:     iproxy 7778 7777"
-  echo "  Desktop: run: claude mcp remove mcpe2e && claude mcp add mcpe2e --command $BINARY_PATH --env TESTBRIDGE_URL=http://localhost:7777"
+  echo "  Desktop: claude mcp remove mcpe2e && claude mcp add mcpe2e -e TESTBRIDGE_URL=http://localhost:7777 -- $BINARY_PATH"
 else
   echo "Claude Code CLI not found. Register manually:"
   echo ""
-  echo "  claude mcp add mcpe2e \\"
-  echo "    --command $BINARY_PATH \\"
-  echo "    --env TESTBRIDGE_URL=http://localhost:7778"
+  echo "  claude mcp add mcpe2e -e TESTBRIDGE_URL=http://localhost:7778 -- $BINARY_PATH"
   echo ""
   echo "Then connect your device:"
   echo "  Android: adb forward tcp:7778 tcp:7777"
