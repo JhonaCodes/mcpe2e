@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.1] - 2026-03-10
+
+### Fixed
+- `mcpe2e_server setup`: Claude Code registration now uses `--scope user` so the server
+  is added to `~/.claude.json` (global) instead of a local `.mcp.json`. Previously the
+  TUI always showed Claude Code as "disabled" even after enabling it.
+- `install.sh`: same fix applied to the `claude mcp add` call.
+
+---
+
 ## [1.1.0] - 2026-03-10
 
 ### Added

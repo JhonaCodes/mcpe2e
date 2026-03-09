@@ -1,6 +1,6 @@
 name: mcpe2e_server
 description: MCP server that translates Claude tool calls to HTTP commands for Flutter E2E testing via mcpe2e.
-version: 1.1.0
+version: 1.1.1
 repository: https://github.com/JhonaCodes/mcpe2e
 issue_tracker: https://github.com/JhonaCodes/mcpe2e/issues
 
