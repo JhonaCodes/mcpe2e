@@ -13,7 +13,7 @@ const _gr  = '\x1B[90m';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const _repo    = 'JhonaCodes/mcpe2e';
-const _version = '1.0.7';
+const _version = '1.0.8';
 
 String get _installDir {
   if (Platform.isWindows) {
@@ -32,9 +32,14 @@ Future<void> main() async {
 
   final asset = _detectAsset();
   if (asset == null) {
-    print('$_red  ✗ Unsupported platform: ${Platform.operatingSystem}/${_arch}$_r');
-    print('');
-    print('    Build from source:');
+    final os   = Platform.operatingSystem;
+    final arch = _arch;
+    print('$_red  ✗ No prebuilt binary for $os/$arch.$_r');
+    if (os == 'macos' && arch == 'x86_64') {
+      print('    Intel Macs are not supported yet. Build from source:');
+    } else {
+      print('    Build from source:');
+    }
     print('    cd mcpe2e_server');
     print('    dart compile exe bin/mcp_server.dart -o ~/.local/bin/mcpe2e_server');
     exit(1);
@@ -53,7 +58,6 @@ String? _detectAsset() {
   final os   = Platform.operatingSystem;
   final arch = _arch;
   if (os == 'macos'   && arch == 'arm64')  return 'mcpe2e_server-macos-arm64';
-  if (os == 'macos'   && arch == 'x86_64') return 'mcpe2e_server-macos-x86_64';
   if (os == 'linux'   && arch == 'x86_64') return 'mcpe2e_server-linux-x86_64';
   if (os == 'windows')                      return 'mcpe2e_server.exe';
   return null;
@@ -83,8 +87,8 @@ Future<void> _cleanOldInstall() async {
 
   // Remove from Claude Code if registered
   try {
-    Process.runSync('claude', ['mcp', 'remove', 'mcpe2e']);
-    print('  ${_gr}  removed from Claude Code$_r');
+    final result = Process.runSync('claude', ['mcp', 'remove', 'mcpe2e']);
+    if (result.exitCode == 0) print('  ${_gr}  removed from Claude Code$_r');
   } catch (_) {}
 }
 
@@ -103,8 +107,6 @@ Future<bool> _download(String asset) async {
     );
     req.headers.set('User-Agent', 'mcpe2e-setup/$_version');
     req.headers.set('Accept', 'application/vnd.github+json');
-    final token = Platform.environment['GITHUB_TOKEN'];
-    if (token != null) req.headers.set('Authorization', 'Bearer $token');
     final res  = await req.close();
     final body = await res.transform(utf8.decoder).join();
     client.close();
