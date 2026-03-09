@@ -114,8 +114,7 @@ Future<bool> _download(String asset) async {
       final msg = decoded['message'] ?? 'HTTP ${res.statusCode}';
       print('$_red  ✗ GitHub API error: $msg$_r');
       if (msg.toString().contains('rate limit')) {
-        print('    Set GITHUB_TOKEN env var to avoid rate limits:');
-        print('    $_dim export GITHUB_TOKEN=<your_token>$_r');
+        print('    Too many requests from this IP. Wait a few minutes and try again.');
       }
       return false;
     }
