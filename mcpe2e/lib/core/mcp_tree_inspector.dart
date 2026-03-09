@@ -314,13 +314,7 @@ class McpTreeInspector {
       final titleText = widget.title is Text
           ? (widget.title as Text).data
           : _findTextInSubtree(element);
-      return _entry(
-        'AppBar',
-        depth,
-        pos,
-        mcpKey,
-        extra: {'title': ?titleText},
-      );
+      return _entry('AppBar', depth, pos, mcpKey, extra: {'title': ?titleText});
     }
 
     // ── Diálogos / overlays ────────────────────────────────────────────────
@@ -363,13 +357,7 @@ class McpTreeInspector {
     String? key, {
     Map<String, dynamic> extra = const {},
   }) {
-    return {
-      'type': type,
-      'depth': depth,
-      'key': ?key,
-      ...extra,
-      ...?pos,
-    };
+    return {'type': type, 'depth': depth, 'key': ?key, ...extra, ...?pos};
   }
 
   /// Obtiene la posición y tamaño del widget en coordenadas de pantalla.
