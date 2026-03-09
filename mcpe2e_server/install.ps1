@@ -42,12 +42,23 @@ if ($CurrentPath -notlike "*$InstallDir*") {
     Write-Host ""
 }
 
-# ── MCP registration instructions ────────────────────────────────────────────
-Write-Host "Register with Claude Code:"
-Write-Host ""
-Write-Host "  claude mcp add mcpe2e --command `"$BinaryPath`" --env TESTBRIDGE_URL=http://localhost:7778"
-Write-Host ""
-Write-Host "Then connect your device:"
-Write-Host "  Android: adb forward tcp:7778 tcp:7777"
-Write-Host "  iOS:     iproxy 7778 7777"
-Write-Host "  Desktop: use TESTBRIDGE_URL=http://localhost:7777"
+# ── Register with Claude Code ─────────────────────────────────────────────────
+if (Get-Command claude -ErrorAction SilentlyContinue) {
+    Write-Host "Registering with Claude Code..."
+    claude mcp add mcpe2e --command "$BinaryPath" --env TESTBRIDGE_URL=http://localhost:7778
+    Write-Host ""
+    Write-Host "✓ Done! mcpe2e is registered in Claude Code."
+    Write-Host ""
+    Write-Host "Connect your device:"
+    Write-Host "  Android: adb forward tcp:7778 tcp:7777"
+    Write-Host "  iOS:     iproxy 7778 7777"
+} else {
+    Write-Host "Claude Code CLI not found. Register manually:"
+    Write-Host ""
+    Write-Host "  claude mcp add mcpe2e --command `"$BinaryPath`" --env TESTBRIDGE_URL=http://localhost:7778"
+    Write-Host ""
+    Write-Host "Then connect your device:"
+    Write-Host "  Android: adb forward tcp:7778 tcp:7777"
+    Write-Host "  iOS:     iproxy 7778 7777"
+    Write-Host "  Desktop: use TESTBRIDGE_URL=http://localhost:7777"
+}
