@@ -1,8 +1,14 @@
 name: mcpe2e_server
-description: Dart MCP server for Flutter E2E testing via HTTP bridge
+description: MCP server that translates Claude tool calls to HTTP commands for Flutter E2E testing via mcpe2e.
+version: 1.0.0
+repository: https://github.com/JhonaCodes/mcpe2e
+issue_tracker: https://github.com/JhonaCodes/mcpe2e/issues
 
 environment:
-  sdk: ^3.0.0
+  sdk: '>=3.5.0 <4.0.0'
 
 dependencies:
   http: ^1.1.0
+
+executables:
+  mcpe2e_server: mcp_server

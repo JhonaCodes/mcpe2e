@@ -348,6 +348,55 @@ final List<Map<String, dynamic>> toolDefinitions = [
     },
   },
 
+  // ── Drag, pinch, show keyboard ─────────────────────────────────────────────
+
+  {
+    'name': 'drag_widget',
+    'description':
+        'Drags a widget by a relative pixel offset from its center. '
+        'dx > 0 = right, dx < 0 = left, dy > 0 = down, dy < 0 = up. '
+        'Useful for drag-to-reorder, pull-to-refresh, and custom drag targets.',
+    'inputSchema': {
+      'type': 'object',
+      'properties': {
+        'key': {'type': 'string', 'description': 'Widget ID to drag from'},
+        'dx': {'type': 'number', 'description': 'Horizontal pixel offset (positive = right)'},
+        'dy': {'type': 'number', 'description': 'Vertical pixel offset (positive = down)'},
+        'duration_ms': {'type': 'integer', 'description': 'Drag duration in ms (default: 500)'},
+      },
+      'required': ['key', 'dx', 'dy'],
+    },
+  },
+  {
+    'name': 'pinch_widget',
+    'description':
+        'Pinch zoom gesture on a widget. scale > 1.0 zooms in (spread), scale < 1.0 zooms out (pinch). '
+        'Note: pinch requires dual-pointer simulation — not yet implemented on the Flutter side; '
+        'this will return false until implemented.',
+    'inputSchema': {
+      'type': 'object',
+      'properties': {
+        'key': {'type': 'string', 'description': 'Widget ID to pinch'},
+        'scale': {'type': 'number', 'description': 'Scale factor (e.g. 2.0 = double size, 0.5 = half)'},
+      },
+      'required': ['key', 'scale'],
+    },
+  },
+  {
+    'name': 'show_keyboard',
+    'description':
+        'Requests focus on a widget to show the virtual keyboard. '
+        'Use before input_text if the keyboard is not appearing automatically. '
+        'Pair with hide_keyboard to dismiss it after input.',
+    'inputSchema': {
+      'type': 'object',
+      'properties': {
+        'key': {'type': 'string', 'description': 'Widget ID of the focusable field'},
+      },
+      'required': ['key'],
+    },
+  },
+
   // ── Inspección del UI ──────────────────────────────────────────────────────
 
   {
@@ -519,6 +568,26 @@ Future<List<Map<String, dynamic>>> callTool(
         'type': 'assertCount',
         'params': {'expectedCount': args['count']},
       }).then(t),
+
+    // ── Drag, pinch, show keyboard ────────────────────────────────────────────
+    'drag_widget' => () {
+        final ms = args['duration_ms'] as int? ?? 500;
+        final dx = args['dx'] as num;
+        final dy = args['dy'] as num;
+        return bridge.get(
+          '/action?key=${k(args['key'])}&type=drag&deltaX=$dx&deltaY=$dy&duration=$ms',
+        ).then(t);
+      }(),
+
+    'pinch_widget' => () {
+        final scale = args['scale'] as num;
+        return bridge.get(
+          '/action?key=${k(args['key'])}&type=pinch&scale=$scale',
+        ).then(t);
+      }(),
+
+    'show_keyboard' =>
+      bridge.get('/action?key=${k(args['key'])}&type=showkeyboard').then(t),
 
     // ── Inspección del UI ──────────────────────────────────────────────────────
     'inspect_ui' =>

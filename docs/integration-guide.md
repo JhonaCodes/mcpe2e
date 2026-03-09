@@ -207,17 +207,21 @@ curl http://localhost:7778/mcp/tree
 ## Step 7: Register mcpe2e_server with Claude
 
 ```bash
-# Compile the MCP server
+# Option A: Download pre-compiled binary (recommended)
+curl -fsSL https://raw.githubusercontent.com/JhonaCodes/mcpe2e/main/mcpe2e_server/install.sh | bash
+
+# Option B: Build from source
 cd mcpe2e_server
-dart compile exe bin/server.dart -o mcpe2e
+dart pub get
+dart compile exe bin/mcp_server.dart -o mcpe2e_server
 
 # Register with Claude Code
 claude mcp add mcpe2e \
-  --command /path/to/mcpe2e_server/mcpe2e \
+  --command ~/.local/bin/mcpe2e_server \
   --env TESTBRIDGE_URL=http://localhost:7778
 ```
 
-Claude can now call `tap_widget`, `input_text`, `inspect_ui`, `capture_screenshot`, and 23 more tools.
+Claude can now call `tap_widget`, `input_text`, `inspect_ui`, `capture_screenshot`, and 26 more tools.
 
 ---
 

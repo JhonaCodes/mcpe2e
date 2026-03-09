@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'tools.dart';
+import 'version.dart';
 
 class McpServer {
   final FlutterBridge bridge;
@@ -44,7 +45,7 @@ class McpServer {
           'result': {
             'protocolVersion': '2024-11-05',
             'capabilities': {'tools': {}},
-            'serverInfo': {'name': 'dart-mcpe2e', 'version': '1.0.0'},
+            'serverInfo': {'name': kServerName, 'version': kServerVersion},
           },
         };
 

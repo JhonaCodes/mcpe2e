@@ -10,7 +10,7 @@ Claude Code / Claude Desktop
     │  MCP (JSON-RPC 2.0 / stdio)
     ▼
 ┌─────────────────────────────────┐
-│  mcpe2e_server  (Dart)          │  MCP Server — 27 tools
+│  mcpe2e_server  (Dart)          │  MCP Server — 29 tools
 │  Translates MCP tools → HTTP    │  Binary: bin/server.dart
 │  Connects to the app via HTTP   │  TESTBRIDGE_URL=http://localhost:7778
 └────────────────┬────────────────┘
@@ -126,7 +126,7 @@ assert_text              → verify visible text
 
 `McpConnectivity.setup()` configures forwarding automatically when `McpEventServer.start()` is called.
 
-## MCP Tools (27 total)
+## MCP Tools (29 total)
 
 ### Context & inspection
 
@@ -147,6 +147,8 @@ assert_text              → verify visible text
 | `swipe_widget` | Swipe (up/down/left/right) |
 | `scroll_widget` | Scroll a list |
 | `scroll_until_visible` | Scroll until a widget is visible |
+| `drag_widget` | Drag by dx/dy pixel offset from center |
+| `pinch_widget` | Pinch zoom (stub — not yet implemented) |
 | `tap_by_label` | Tap by visible text label |
 
 ### Input
@@ -163,6 +165,7 @@ assert_text              → verify visible text
 
 | Tool | Description |
 |------|-------------|
+| `show_keyboard` | Show virtual keyboard (request focus) |
 | `hide_keyboard` | Dismiss the virtual keyboard |
 | `press_back` | Navigate back |
 | `wait` | Pause execution (useful after animations) |
