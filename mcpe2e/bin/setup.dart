@@ -103,15 +103,26 @@ Future<bool> _download(String asset) async {
     );
     req.headers.set('User-Agent', 'mcpe2e-setup/$_version');
     req.headers.set('Accept', 'application/vnd.github+json');
+    final token = Platform.environment['GITHUB_TOKEN'];
+    if (token != null) req.headers.set('Authorization', 'Bearer $token');
     final res  = await req.close();
     final body = await res.transform(utf8.decoder).join();
     client.close();
 
+    if (res.statusCode != 200) {
+      final decoded = jsonDecode(body) as Map;
+      final msg = decoded['message'] ?? 'HTTP ${res.statusCode}';
+      print('$_red  ✗ GitHub API error: $msg$_r');
+      if (msg.toString().contains('rate limit')) {
+        print('    Set GITHUB_TOKEN env var to avoid rate limits:');
+        print('    $_dim export GITHUB_TOKEN=<your_token>$_r');
+      }
+      return false;
+    }
     final decoded = jsonDecode(body) as Map;
     final rawTag  = decoded['tag_name'];
     if (rawTag == null) {
       print('$_red  ✗ No GitHub release found yet.$_r');
-      print('    The CI build may still be running:');
       print('    $_dim https://github.com/$_repo/actions$_r');
       return false;
     }
