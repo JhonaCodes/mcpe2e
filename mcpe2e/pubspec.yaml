@@ -1,6 +1,6 @@
 name: mcpe2e
 description: E2E testing library integrated with Model Context Protocol (MCP) for Flutter apps. Enables remote control via HTTP and Claude Desktop integration.
-version: 0.1.0
+version: 0.3.0
 repository: https://github.com/JhonaCodes/mcpe2e
 issue_tracker: https://github.com/JhonaCodes/mcpe2e/issues
 
