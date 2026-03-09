@@ -1,117 +1,170 @@
 # mcpe2e
 
-Flutter library for AI-driven E2E testing. Embeds an HTTP server in your app so that [mcpe2e_server](../mcpe2e_server) (the MCP server) can control real widgets — tap, type, scroll, assert — from Claude or any MCP client.
-
-## What it does
-
-`mcpe2e` is the **device-side component**: it runs inside your Flutter app, exposes an HTTP server on port 7777, and executes real gestures on the live widget tree.
+Let Claude control a real Flutter app on a device — tap, type, scroll, assert — using MCP tools.
 
 ```
-Claude → MCP → mcpe2e_server → HTTP → [mcpe2e running inside your app] → real gestures
+Claude → MCP → mcpe2e_server → HTTP → [your app on device] → real gestures
 ```
 
-It does **not** implement MCP. It speaks plain HTTP.
+---
 
-## Features
+## How it works
 
-- **25 event types**: tap, doubleTap, longPress, swipe, scroll, textInput, clearText, selectDropdown, toggle, setSliderValue, hideKeyboard, pressBack, scrollUntilVisible, tapByLabel, wait + 7 assert types
-- **Widget registry**: register widgets with `McpMetadataKey` to make them addressable by ID
-- **UI inspection**: `McpTreeInspector` walks the full widget tree with zero intrusion — reads Text values, TextField content, button states, checkbox values, slider positions
-- **Screenshot**: `McpScreenCapture` captures the screen via Flutter's internal layer tree (zero widgets added, debug/profile only)
-- **Platform connectivity**: auto-configures ADB forward (Android), iproxy (iOS), direct localhost (Desktop)
-- **Production safe**: server never starts unless explicitly called; screenshot fails gracefully in release
+There are two components:
 
-## Installation
+| Component | What it does |
+|-----------|-------------|
+| **mcpe2e** *(this package)* | Runs inside your app. Starts an HTTP server on :7777 that executes real widget gestures. |
+| **[mcpe2e_server](https://github.com/JhonaCodes/mcpe2e/tree/main/mcpe2e_server)** | Runs on your machine. Bridges Claude's MCP tools to HTTP calls to the app. |
+
+---
+
+## Step 1 — Install the MCP server (once, on your machine)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JhonaCodes/mcpe2e/main/mcpe2e_server/install.sh | bash
+```
+
+This downloads the binary and registers it with Claude Code automatically. You only do this once.
+
+---
+
+## Step 2 — Add mcpe2e to your Flutter app
 
 ```yaml
 # pubspec.yaml
-dev_dependencies:
-  mcpe2e:
-    path: /path/to/mcpe2e
+dependencies:
+  mcpe2e: ^0.3.0
 ```
 
-## Quick Start
+> Must be in `dependencies`, not `dev_dependencies` — `McpMetadataKey` extends Flutter's `Key`
+> and is used in widget tree code. The server never starts in release builds (production safe).
 
-### 1. Define testable widgets
+---
+
+## Step 3 — Create a testing file
 
 ```dart
-// lib/testing/mcp_keys.dart
+// lib/testing/mcp_testing.dart
 import 'package:mcpe2e/mcpe2e.dart';
+import 'package:flutter/foundation.dart';
 
-// McpMetadataKey extends Key — use it directly as the widget key
-const loginEmail = McpMetadataKey(
-  id: 'auth.email_field',
-  widgetType: McpWidgetType.textField,
-  description: 'Email input on login screen',
-  screen: 'LoginScreen',
-);
-
-const loginButton = McpMetadataKey(
+// Define keys for each testable widget
+const _loginButton = McpMetadataKey(
   id: 'auth.login_button',
   widgetType: McpWidgetType.button,
-  description: 'Login submit button',
+  description: 'Login button',
   screen: 'LoginScreen',
 );
+const _emailField = McpMetadataKey(
+  id: 'auth.email_field',
+  widgetType: McpWidgetType.textField,
+  description: 'Email input',
+  screen: 'LoginScreen',
+);
+
+// Map used by mcpKey() to look up keys by ID
+const _keys = <String, McpMetadataKey>{
+  'auth.login_button': _loginButton,
+  'auth.email_field':  _emailField,
+};
+
+/// Call this from main() before runApp().
+Future<void> initMcpTesting() async {
+  if (!kDebugMode) return; // no-op in release
+  McpEvents.instance
+    ..registerWidget(_loginButton)
+    ..registerWidget(_emailField);
+  await McpEventServer.start(); // starts HTTP server on :7777
+}
+
+/// Returns the key in debug mode, null in release.
+Key? mcpKey(String id) => kDebugMode ? _keys[id] : null;
 ```
 
-### 2. Register and start
+---
+
+## Step 4 — Initialize in main.dart
 
 ```dart
-import 'package:flutter/foundation.dart';
-import 'package:mcpe2e/mcpe2e.dart';
-
-void initE2E() {
-  if (!kDebugMode && !kProfileMode) return;
-
-  McpEvents.instance.registerWidget(loginEmail);
-  McpEvents.instance.registerWidget(loginButton);
-
-  McpEventServer.start(); // binds :7777, sets up ADB forward automatically
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initMcpTesting();
+  runApp(const MyApp());
 }
 ```
 
-Call `initE2E()` after `WidgetsFlutterBinding.ensureInitialized()`.
+---
 
-### 3. Use keys in widgets
+## Step 5 — Assign keys to your widgets
+
+`McpMetadataKey` extends Flutter's `Key` — use it directly:
 
 ```dart
-// McpMetadataKey extends Key — pass it directly
-TextField(
-  key: loginEmail,
-  controller: _emailController,
-)
-
+// Direct
 ElevatedButton(
-  key: loginButton,
+  key: _loginButton,
   onPressed: _handleLogin,
   child: const Text('Login'),
 )
+
+// With fallback for release (when you have existing keys)
+TextFormField(
+  key: mcpKey('auth.email_field') ?? WidgetKeys.emailField,
+)
 ```
 
-### 4. Dynamic widgets (lists, cards)
+---
 
-Register/unregister in the widget lifecycle:
+## Step 6 — Run and connect
+
+```bash
+# Terminal 1 — run the app in debug
+flutter run
+
+# Terminal 2 — forward the port once the app is on screen
+adb forward tcp:7778 tcp:7777      # Android
+# iproxy 7778 7777                 # iOS
+# Desktop: no setup needed (set TESTBRIDGE_URL=http://localhost:7777)
+```
+
+Verify the connection:
+```bash
+curl http://localhost:7778/ping
+# → {"status":"ok","port":7777}
+```
+
+---
+
+## Step 7 — Ask Claude to test
+
+With the app running and the port forwarded, use Claude's MCP tools:
+
+```
+get_app_context        → see registered widgets on the current screen
+tap_widget             → tap a widget by ID
+input_text             → type into a text field
+assert_widget          → verify text or state
+scroll_widget          → scroll a list
+```
+
+Example prompt to Claude:
+> "Open the app, go to login, type 'user@example.com' in the email field and tap Login"
+
+---
+
+## Dynamic widgets (lists, cards)
+
+Register widgets at runtime and unregister when disposed:
 
 ```dart
-class OrderCard extends StatefulWidget {
-  final String orderId;
-  const OrderCard({required this.orderId, super.key});
-
-  @override
-  State<OrderCard> createState() => _OrderCardState();
-}
-
 class _OrderCardState extends State<OrderCard> {
   late final McpMetadataKey _key;
 
   @override
   void initState() {
     super.initState();
-    _key = McpMetadataKey(
-      id: 'order.card.${widget.orderId}',
-      widgetType: McpWidgetType.card,
-      screen: 'OrdersScreen',
-    );
+    _key = McpMetadataKey(id: 'order.card.${widget.id}', widgetType: McpWidgetType.card);
     McpEvents.instance.registerWidget(_key);
   }
 
@@ -122,150 +175,60 @@ class _OrderCardState extends State<OrderCard> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Card(key: _key, child: Text('Order ${widget.orderId}'));
-  }
+  Widget build(BuildContext context) => Card(key: _key, child: Text(widget.id));
 }
 ```
 
-## HTTP Endpoints
+---
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/ping` | GET | Health check — `{"status":"ok","port":7777}` |
-| `/mcp/context` | GET | Registered widgets with metadata and capabilities |
-| `/mcp/tree` | GET | Full widget tree with values/states (no registration needed) |
-| `/mcp/screenshot` | GET | Current screen as PNG base64 (debug/profile only) |
-| `/action?key=...&type=...` | GET | Execute event via query params |
-| `/event` | POST | Execute event via JSON body |
-| `/widgets` | GET | List widget IDs (`?metadata=true` for full context) |
-
-### /mcp/tree response example
-
-```json
-{
-  "timestamp": "2026-03-09T10:00:00Z",
-  "widget_count": 12,
-  "widgets": [
-    { "type": "Text", "value": "Total: $0.00", "depth": 6, "x": 16.0, "y": 400.0, "w": 150.0, "h": 20.0 },
-    { "type": "TextField", "value": "user@test.com", "hint": "Email", "enabled": true, "depth": 5, "key": "auth.email_field" },
-    { "type": "ElevatedButton", "label": "Login", "enabled": true, "depth": 5, "key": "auth.login_button" },
-    { "type": "Checkbox", "value": false, "enabled": true, "depth": 7 }
-  ]
-}
-```
-
-### /action examples
-
-```bash
-# Tap
-curl "http://localhost:7778/action?key=auth.login_button"
-
-# Type text
-curl "http://localhost:7778/action?key=auth.email_field&type=textinput&text=user@test.com"
-
-# Scroll list down
-curl "http://localhost:7778/action?key=home.item_list&type=scroll&direction=down"
-
-# Toggle checkbox
-curl "http://localhost:7778/action?key=settings.notifications&type=toggle"
-```
-
-### /event POST example
-
-```bash
-curl -X POST http://localhost:7778/event \
-  -H 'Content-Type: application/json' \
-  -d '{"key":"auth.login_button","type":"assertEnabled","params":{}}'
-```
-
-## Event Types (25)
-
-**Gestures**: `tap` · `doubleTap` · `longPress` · `swipe` · `drag` · `scroll` · `pinch`
-
-**Input**: `textInput` · `clearText` · `selectDropdown` · `toggle` · `setSliderValue`
-
-**Keyboard & Nav**: `hideKeyboard` · `showKeyboard` · `pressBack` · `scrollUntilVisible` · `tapByLabel` · `wait`
-
-**Assertions**: `assertExists` · `assertText` · `assertVisible` · `assertEnabled` · `assertSelected` · `assertValue` · `assertCount`
-
-## Widget Types (14)
-
-`button` · `textField` · `text` · `list` · `card` · `image` · `container` · `dropdown` · `checkbox` · `radio` · `switchWidget` · `slider` · `tab` · `custom`
-
-## McpMetadataKey
-
-Extends Flutter's `Key` — assign it directly to any widget:
-
-```dart
-const submitButton = McpMetadataKey(
-  id: 'checkout.submit_button',   // unique ID used by mcpe2e_server tools
-  widgetType: McpWidgetType.button,
-  description: 'Submit order',
-  screen: 'CheckoutScreen',
-);
-
-ElevatedButton(
-  key: submitButton,  // McpMetadataKey IS a Key
-  onPressed: _submit,
-  child: const Text('Place Order'),
-)
-```
-
-## McpEventParams
-
-Optional parameters passed alongside an event type:
-
-```dart
-McpEventParams({
-  String? text,              // textInput, tapByLabel
-  Duration? duration,        // longPress, wait
-  double? distance,          // swipe
-  String? direction,         // swipe, scroll ('up' | 'down' | 'left' | 'right')
-  double? deltaX,            // scroll — horizontal delta
-  double? deltaY,            // scroll — vertical delta
-  bool clearFirst,           // textInput — clear field before typing
-  String? expectedText,      // assertText, assertValue
-  double? scale,             // pinch
-  String? dropdownValue,     // selectDropdown — match by value string
-  int? dropdownIndex,        // selectDropdown — match by index
-  double? sliderValue,       // setSliderValue — 0.0 (min) to 1.0 (max)
-  String? targetKey,         // scrollUntilVisible — widget to scroll into view
-  int? maxScrollAttempts,    // scrollUntilVisible — default 20
-  String? label,             // tapByLabel — visible text to find and tap
-  int? expectedCount,        // assertCount — expected child count
-})
-```
-
-## Widget ID Convention
+## Widget ID convention
 
 ```
 module.element[.variant]
 
-auth.login_button           Static — login button
-auth.email_field            Static — email input
-order.card.{uuid}           Dynamic — card with ID
-state.loading_indicator     State — loading indicator
-screen.dashboard            Screen identifier
-modal.confirm.delete        Modal/dialog
+auth.login_button       Button on login screen
+auth.email_field        Email input on login screen
+order.card.{uuid}       Dynamic card with runtime ID
+modal.confirm.delete    Dialog/modal
 ```
 
-## Platform Connectivity
+---
 
-| Platform | Mechanism | Setup |
-|----------|-----------|-------|
-| Android | ADB forward | Auto: `adb forward tcp:7778 tcp:7777` |
-| iOS | iproxy | Auto: `iproxy 7778 7777` |
-| Desktop | Direct localhost | No setup — use `TESTBRIDGE_URL=http://localhost:7777` |
-| Web | Not supported | Flutter Web cannot open TCP sockets |
+## Event types
+
+**Gestures**: `tap` · `doubleTap` · `longPress` · `swipe` · `drag` · `scroll`
+
+**Input**: `textInput` · `clearText` · `selectDropdown` · `toggle` · `setSliderValue`
+
+**Nav**: `hideKeyboard` · `pressBack` · `scrollUntilVisible` · `tapByLabel` · `wait`
+
+**Assertions**: `assertExists` · `assertText` · `assertVisible` · `assertEnabled` · `assertValue` · `assertCount`
+
+---
+
+## Platform connectivity
+
+| Platform | Command |
+|----------|---------|
+| Android | `adb forward tcp:7778 tcp:7777` |
+| iOS | `iproxy 7778 7777` |
+| Desktop | `TESTBRIDGE_URL=http://localhost:7777` (no forward needed) |
+
+---
+
+## Production safety
+
+- Server never starts outside `kDebugMode` / `kProfileMode`
+- `McpMetadataKey` is a plain `Key` subclass — zero overhead in release
+- Screenshot returns `{"error":"not_available_in_release"}` in release builds
+
+---
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| `/ping` not responding | App must be in debug/profile mode; check port 7777 is not blocked |
-| ADB forward fails | `adb devices` — verify device is connected |
-| Widget not found by key | Key must be registered AND widget must be mounted on screen |
-| Tap has no effect | Widget may be behind another widget, off-screen, or `onPressed` is null |
-| Screenshot returns error | Only available in debug/profile; returns `{"error":"not_available_in_release"}` in release |
-| inspect_ui returns empty | Ensure app has finished rendering its first frame |
+| `/ping` times out | App must be running in debug; check `adb forward` ran after app started |
+| `adb forward` fails | Run `adb devices` — device must appear |
+| Widget not found | Key must be registered AND widget must be visible on screen |
+| Tap has no effect | Widget may be scrolled off-screen or `onPressed` is null |
