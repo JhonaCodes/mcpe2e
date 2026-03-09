@@ -160,17 +160,26 @@ class McpEventExecutor {
     return true;
   }
 
-  /// Drag desde el widget hasta una posición absoluta [params.targetPosition].
+  /// Drag desde el widget hasta una posición absoluta [params.targetPosition]
+  /// o un offset relativo usando [params.deltaX] / [params.deltaY].
   Future<bool> _drag(String key, McpEventParams? params) async {
     final rb = _registry.getRenderBox(key);
-    if (rb == null || params?.targetPosition == null) return _notFound(key);
+    if (rb == null) return _notFound(key);
+    final center = _simulator.centerOf(rb);
     final duration = params?.duration ?? const Duration(milliseconds: 500);
-    Log.i('[Executor] 🖱️  Drag → ${params!.targetPosition}');
-    _simulator.simulateSwipe(
-      _simulator.centerOf(rb),
-      params.targetPosition!,
-      duration,
-    );
+
+    final Offset target;
+    if (params?.targetPosition != null) {
+      target = params!.targetPosition!;
+    } else if (params?.deltaX != null || params?.deltaY != null) {
+      target = center + Offset(params?.deltaX ?? 0, params?.deltaY ?? 0);
+    } else {
+      Log.i('[Executor] ❌ drag requiere targetPosition o deltaX/deltaY');
+      return false;
+    }
+
+    Log.i('[Executor] 🖱️  Drag → $target');
+    _simulator.simulateSwipe(center, target, duration);
     return true;
   }
 
