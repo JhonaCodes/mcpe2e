@@ -573,7 +573,7 @@ class McpEventExecutor {
     Log.i('[Executor] 🏷️  TapByLabel "$label"');
 
     for (final entry in _registry.entries) {
-      final context = entry.value.globalKey.currentContext;
+      final context = _registry.getContext(entry.key);
       if (context == null) continue;
 
       bool found = false;
@@ -627,8 +627,11 @@ class McpEventExecutor {
   /// No verifica si está montado — solo que fue registrado.
   /// Para verificar si está visible en pantalla, usa [_assertVisible].
   Future<bool> _assertExists(String key) async {
-    final exists = _registry.isRegistered(key);
-    Log.i('[Executor] ✅ AssertExists "$key" = $exists');
+    // isRegistered: fue declarado. getContext != null: está montado en pantalla.
+    final registered = _registry.isRegistered(key);
+    final mounted = _registry.getContext(key) != null;
+    final exists = registered || mounted;
+    Log.i('[Executor] ✅ AssertExists "$key" = $exists (registered=$registered, mounted=$mounted)');
     return exists;
   }
 
