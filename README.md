@@ -1,42 +1,55 @@
 # mcpe2e — AI-driven Flutter E2E Testing
 
-Let Claude control a real Flutter app on a device: tap, type, scroll, assert — all through natural language.
+[![version](https://img.shields.io/badge/version-1.0.7-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v1.0.7)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-```
-Claude Code / Claude Desktop
-    │
-    │  MCP (JSON-RPC 2.0 / stdio)
-    ▼
-┌─────────────────────────────────────┐
-│  mcpe2e_server  (Dart CLI)          │  MCP Server — 29 tools
-│  Translates MCP tool calls → HTTP   │  Installed once on developer's machine
-└────────────────┬────────────────────┘
-                 │  HTTP  localhost:7778
-                 │  (ADB forward / iproxy / direct)
-                 ▼
-┌─────────────────────────────────────┐
-│  mcpe2e  (Flutter library)          │  Runs INSIDE the app on the device
-│  HTTP server on :7777               │  Executes real gestures on the
-│  29 event types                     │  live widget tree
-│  Zero-intrusion UI inspection       │
-└─────────────────────────────────────┘
-```
+mcpe2e lets an AI agent (Claude, Codex, Gemini) control a real Flutter app running on a device or simulator. The agent calls MCP tools in natural language — tap, type, scroll, assert — and those commands reach the live widget tree as real pointer events.
 
-> **Important distinction:**
-> - `mcpe2e` is a **Flutter library** — added to your app as a `dev_dependency`
-> - `mcpe2e_server` is a **CLI tool** — installed once on your machine, registered with Claude
+No UI modifications needed. No test doubles. The app runs as-is.
 
 ---
 
-## Repository Structure
+## Architecture
 
 ```
-mcpe2e/                 Flutter library — add to your app
-mcpe2e_server/          Dart CLI/MCP server — install on your machine
-docs/                   Integration guides and examples
-CLAUDE.md               Architecture reference for Claude
-.github/workflows/      CI — builds mcpe2e_server binaries for all platforms
+User → AI Agent (Claude / Codex / Gemini)
+              |
+              |  MCP  (JSON-RPC 2.0 / stdio)
+              v
+      mcpe2e_server  (Dart binary)           installed in ~/.local/bin/
+      Translates MCP tool calls → HTTP
+              |
+              |  HTTP  localhost:7778
+              |  (ADB forward / iproxy / direct)
+              v
+      mcpe2e  (Flutter library)              dev_dependency in the app
+      HTTP server embedded inside the app
+      Executes real pointer events via GestureBinding
+              |
+              |
+              v
+      Flutter app on device / simulator
 ```
+
+Two independent components:
+
+| Component | What it is | Where it runs |
+|-----------|------------|---------------|
+| `mcpe2e` | Flutter library — HTTP server embedded in the app | Inside the device |
+| `mcpe2e_server` | MCP server binary — bridges AI tools to HTTP | Developer's machine |
+
+`mcpe2e` is **not** an MCP server. It is a lightweight HTTP server that lives inside the running app and executes gestures on the live widget tree.
+
+---
+
+## Zero-config approach
+
+The primary testing workflow requires no widget registration:
+
+1. Call `inspect_ui` — returns the full widget tree with coordinates (`x`, `y`, `w`, `h`) for every element.
+2. Call `tap_at x: <x> y: <y>` — taps at those absolute screen coordinates.
+
+No `McpMetadataKey`, no widget registry, no test wrappers. Widget keys are optional and available when you want named access.
 
 ---
 
@@ -49,238 +62,211 @@ CLAUDE.md               Architecture reference for Claude
 dev_dependencies:
   mcpe2e:
     git:
-      url: https://github.com/JhonaCodes/mcpe2e
+      url: https://github.com/JhonaCodes/mcpe2e.git
       path: mcpe2e
+      ref: v1.0.7
 ```
 
-### Step 2 — Initialize the server in your app
+```bash
+flutter pub get
+```
+
+### Step 2 — Install the MCP server and register your AI agents
+
+```bash
+dart run mcpe2e:setup
+```
+
+This single command:
+1. Downloads the `mcpe2e_server` binary for your platform to `~/.local/bin/`
+2. Opens an interactive menu to register it with your AI agents (Claude Code, Claude Desktop, Codex CLI, Gemini CLI)
+
+To change agent registrations at any time:
+
+```bash
+mcpe2e_server setup
+```
+
+### Step 3 — Start the server in main.dart
 
 ```dart
 import 'package:flutter/foundation.dart';
 import 'package:mcpe2e/mcpe2e.dart';
 
-// Define keys for your widgets
-const loginButton = McpMetadataKey(
-  id: 'auth.login_button',
-  widgetType: McpWidgetType.button,
-  description: 'Login submit button',
-  screen: 'LoginScreen',
-);
-
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Register widgets and start the HTTP server (debug/profile only)
-  if (kDebugMode || kProfileMode) {
-    McpEvents.instance.registerWidget(loginButton);
-    await McpEventServer.start(); // listens on :7777
-  }
-
+  if (kDebugMode) await McpEventServer.start();
   runApp(const MyApp());
 }
-
-// Assign the key directly to the widget
-ElevatedButton(
-  key: loginButton,
-  onPressed: _handleLogin,
-  child: const Text('Login'),
-)
 ```
 
-The server **starts automatically** when the app launches and **stops automatically** when the app closes.
-
-### Step 3 — Install mcpe2e_server on your machine
-
-**macOS / Linux**
-```bash
-curl -fsSL https://raw.githubusercontent.com/JhonaCodes/mcpe2e/main/mcpe2e_server/install.sh | bash
-```
-
-**Windows (PowerShell)**
-```powershell
-irm https://raw.githubusercontent.com/JhonaCodes/mcpe2e/main/mcpe2e_server/install.ps1 | iex
-```
-
-**Manual download** — pick your platform from [Releases](https://github.com/JhonaCodes/mcpe2e/releases/latest):
-
-| Platform | Binary |
-|---|---|
-| macOS Apple Silicon (M1/M2/M3/M4) | `mcpe2e_server-macos-arm64` |
-| macOS Intel | `mcpe2e_server-macos-x86_64` |
-| Linux x86_64 | `mcpe2e_server-linux-x86_64` |
-| Windows x86_64 | `mcpe2e_server.exe` |
+The server starts on port `7777` and is a no-op in release builds.
 
 ### Step 4 — Connect the device
 
 ```bash
-# Android — forward device port 7777 to localhost 7778
+# Android
 adb forward tcp:7778 tcp:7777
 
-# iOS — requires usbmuxd (brew install usbmuxd)
+# iOS (requires usbmuxd: brew install usbmuxd)
 iproxy 7778 7777
 
-# Desktop — no forwarding needed, use port 7777 directly
+# Desktop — no forwarding needed
+# Set TESTBRIDGE_URL=http://localhost:7777 in the agent config
 ```
 
 Verify the connection:
+
 ```bash
 curl http://localhost:7778/ping
-# → {"status":"ok","port":7777}
+# {"status":"ok","port":7777}
 ```
 
-### Step 5 — Register with Claude
+### Step 5 — Run your first test
 
-**Claude Code**
-```bash
-claude mcp add mcpe2e \
-  --command ~/.local/bin/mcpe2e_server \
-  --env TESTBRIDGE_URL=http://localhost:7778
+With the app running and the port forwarded, ask the AI agent:
+
+```
+inspect_ui
 ```
 
-**Claude Desktop** — add to `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "mcpe2e": {
-      "command": "/Users/you/.local/bin/mcpe2e_server",
-      "env": { "TESTBRIDGE_URL": "http://localhost:7778" }
-    }
-  }
-}
+The agent receives the full widget tree with coordinates. Then:
+
+```
+tap_at x: 195 y: 420
 ```
 
-Now tell Claude: *"tap the login button"*, *"type 'hello' in the email field"*, *"verify the error message says..."*
+Or by widget key if registered:
+
+```
+tap_widget key: auth.login_button
+```
 
 ---
 
 ## Available Tools (29)
 
-### Context & Inspection
+### Context and Inspection
+
 | Tool | Description |
-|---|---|
+|------|-------------|
 | `get_app_context` | Registered widgets with metadata and capabilities |
-| `list_test_cases` | Alias for get_app_context |
-| `inspect_ui` | **Full widget tree** with values/states — no registration needed |
-| `capture_screenshot` | **Current screen as image** — Claude sees it directly |
+| `list_test_cases` | Alias for `get_app_context` |
+| `inspect_ui` | Full widget tree with values, states, and screen coordinates — no registration needed |
+| `capture_screenshot` | Current screen as PNG image — the agent sees it directly |
 
 ### Gestures
-| Tool | Parameters | Description |
-|---|---|---|
-| `tap_widget` | `key` | Single tap |
+
+| Tool | Key parameters | Description |
+|------|---------------|-------------|
+| `tap_widget` | `key` | Single tap on a registered widget |
+| `tap_at` | `x`, `y` | Tap at absolute screen coordinates |
 | `double_tap_widget` | `key` | Double tap |
 | `long_press_widget` | `key`, `duration_ms?` | Long press |
 | `swipe_widget` | `key`, `direction`, `distance?` | Swipe in a direction |
-| `scroll_widget` | `key`, `direction` | Scroll a list |
-| `scroll_until_visible` | `key`, `target_key`, `max_attempts?` | Scroll until widget is visible |
-| `drag_widget` | `key`, `dx`, `dy`, `duration_ms?` | Drag by pixel offset |
-| `pinch_widget` | `key`, `scale` | Pinch zoom *(stub — not yet implemented)* |
-| `tap_by_label` | `label` | Tap by visible text |
+| `scroll_widget` | `key`, `direction` | Scroll a scrollable widget |
+| `scroll_until_visible` | `key`, `target_key`, `max_attempts?` | Scroll until a widget is visible |
+| `drag_widget` | `key`, `dx`, `dy`, `duration_ms?` | Drag by pixel offset from center |
+| `pinch_widget` | `key`, `scale` | Pinch zoom |
+| `tap_by_label` | `label` | Tap by visible text content |
 
 ### Input
-| Tool | Parameters | Description |
-|---|---|---|
+
+| Tool | Key parameters | Description |
+|------|---------------|-------------|
 | `input_text` | `key`, `text`, `clear_first?` | Type into a TextField |
 | `clear_text` | `key` | Clear a TextField |
-| `select_dropdown` | `key`, `value` or `index` | Select dropdown option |
-| `toggle_widget` | `key` | Toggle Checkbox / Switch / Radio |
-| `set_slider_value` | `key`, `value` (0.0–1.0) | Set Slider position |
+| `select_dropdown` | `key`, `value` or `index` | Select a dropdown option |
+| `toggle_widget` | `key` | Toggle a Checkbox, Switch, or Radio |
+| `set_slider_value` | `key`, `value` (0.0–1.0) | Set a Slider position |
 
-### Keyboard & Navigation
-| Tool | Parameters | Description |
-|---|---|---|
-| `show_keyboard` | `key` | Show virtual keyboard |
-| `hide_keyboard` | — | Dismiss virtual keyboard |
-| `press_back` | `key` | Navigate back |
-| `wait` | `duration_ms` | Pause execution |
+### Keyboard and Navigation
+
+| Tool | Key parameters | Description |
+|------|---------------|-------------|
+| `show_keyboard` | `key` | Request focus and show virtual keyboard |
+| `hide_keyboard` | — | Dismiss the virtual keyboard |
+| `press_back` | — | Navigate back |
+| `wait` | `duration_ms` | Pause execution (useful after animations) |
 
 ### Assertions
-| Tool | Parameters | Description |
-|---|---|---|
+
+| Tool | Key parameters | Description |
+|------|---------------|-------------|
 | `assert_exists` | `key` | Widget is registered |
-| `assert_text` | `key`, `text` | Visible text matches |
-| `assert_visible` | `key` | Widget is fully visible |
+| `assert_text` | `key`, `text` | Visible text matches expected value |
+| `assert_visible` | `key` | Widget is visible in the viewport |
 | `assert_enabled` | `key` | Widget is enabled |
-| `assert_selected` | `key` | Checkbox/Switch/Radio is active |
-| `assert_value` | `key`, `value` | TextField value matches |
-| `assert_count` | `key`, `count` | List has exactly N children |
+| `assert_selected` | `key` | Checkbox, Switch, or Radio is active |
+| `assert_value` | `key`, `value` | TextField controller value matches |
+| `assert_count` | `key`, `count` | List or column has exactly N children |
 
 ---
 
 ## Widget ID Convention
 
-```
-module.element[.variant]
+When using named widget keys, follow the `module.element[.variant]` pattern:
 
-auth.login_button         Login button
-auth.email_field          Email text field
-order.form.price          Price field inside an order form
-order.card.{uuid}         Dynamic card identified at runtime
-settings.dark_mode        Dark mode toggle
+```
+auth.login_button          Login button
+auth.email_field           Email input
+order.form.price           Price field inside an order form
+order.card.{uuid}          Dynamic card identified at runtime
+settings.dark_mode         Dark mode toggle
+modal.confirm.delete       Confirmation dialog
 ```
 
 ---
 
-## Key Concepts
+## Managing Agents
 
-### McpMetadataKey
-Extends Flutter's `Key` — assign it directly to any widget. No wrapper widgets needed.
+The installer registers agents interactively. To change which agents have access to mcpe2e tools:
 
-```dart
-const myKey = McpMetadataKey(
-  id: 'module.element',          // unique ID used by Claude
-  widgetType: McpWidgetType.button,
-  description: 'What this widget does',
-  screen: 'ScreenName',
-);
-
-// Use it like any Flutter Key:
-ElevatedButton(key: myKey, ...)
+```bash
+mcpe2e_server setup
 ```
 
-### inspect_ui — zero-registration inspection
-Claude can see ALL widgets on screen without any registration:
-```
-inspect_ui → returns every Text, TextField, Button, Checkbox, Switch,
-             Slider, AppBar, Dialog, SnackBar with their current values,
-             states, and screen coordinates
-```
-
-### capture_screenshot — visual verification
-Claude receives a real PNG screenshot and can describe what it sees. Only works in debug/profile mode.
-
-### Auto lifecycle
-The HTTP server starts with `McpEventServer.start()` and stops automatically when the app is closed via `WidgetsBindingObserver`. No manual cleanup needed.
-
-### Production safety
-- `McpEventServer.start()` is a no-op in release builds
-- `capture_screenshot` returns `{"error":"not_available_in_release"}` in release
-- The server never starts unless explicitly called
+This opens an interactive menu to enable or disable individual agents (Claude Code, Claude Desktop, Codex CLI, Gemini CLI) without reinstalling.
 
 ---
 
-## TESTBRIDGE_URL
+## Platform Connectivity
 
-| Scenario | Value |
-|---|---|
-| Android via ADB forward | `http://localhost:7778` |
-| iOS via iproxy | `http://localhost:7778` |
-| Desktop (same machine) | `http://localhost:7777` |
+| Platform | Mechanism | Setup command |
+|----------|-----------|---------------|
+| Android | ADB forward | `adb forward tcp:7778 tcp:7777` |
+| iOS | iproxy | `iproxy 7778 7777` |
+| macOS / Linux / Windows desktop | Direct localhost | Set `TESTBRIDGE_URL=http://localhost:7777` |
+| Web | Not supported | Flutter Web cannot open TCP sockets |
+
+The `TESTBRIDGE_URL` environment variable tells `mcpe2e_server` where to find the app. Default is `http://localhost:7778`.
+
+---
+
+## Repository Structure
+
+```
+mcpe2e/              Flutter library — add to your app as dev_dependency
+mcpe2e_server/       MCP server binary — install once on your machine
+docs/                Integration guides and examples
+CLAUDE.md            Architecture reference for Claude Code context
+```
 
 ---
 
 ## Documentation
 
 | File | Description |
-|---|---|
-| `mcpe2e/README.md` | Flutter library API reference |
-| `mcpe2e_server/README.md` | MCP server setup and tool reference |
+|------|-------------|
+| `mcpe2e/README.md` | Flutter library reference (endpoints, API, production safety) |
+| `mcpe2e_server/README.md` | MCP server setup, configuration, and tool reference |
 | `docs/integration-guide.md` | Step-by-step integration for any Flutter app |
 | `docs/test-flow-example.md` | Complete test walkthrough with Claude |
-| `CLAUDE.md` | Architecture reference (for Claude Code context) |
+| `CLAUDE.md` | Architecture reference for Claude Code context |
 
 ---
 
-## Building mcpe2e_server from Source
+## Building from Source
 
 ```bash
 git clone https://github.com/JhonaCodes/mcpe2e
@@ -289,6 +275,4 @@ dart pub get
 dart compile exe bin/mcp_server.dart -o mcpe2e_server
 ```
 
-Requires Dart SDK ≥ 3.5.0.
-
-Pre-compiled binaries for all platforms are available on every [GitHub Release](https://github.com/JhonaCodes/mcpe2e/releases).
+Requires Dart SDK >= 3.5.0. Precompiled binaries for macOS (arm64, x86_64), Linux (x86_64), and Windows (x86_64) are available on every [GitHub Release](https://github.com/JhonaCodes/mcpe2e/releases).

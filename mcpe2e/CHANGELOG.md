@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.7] - 2026-03-10
+
+### Added
+- `dart run mcpe2e:setup` — one-command setup: downloads `mcpe2e_server` binary for your platform and opens the interactive agent registration menu. No curl, no manual binary install. Run after `flutter pub get`.
+
+### Changed
+- Version unified to 1.0.7 across all components (Flutter lib, MCP server, GitHub tags)
+- Primary testing approach is now coordinate-based: `inspect_ui` returns the full widget tree with `x`/`y`/`w`/`h` coordinates; `tap_at` taps by absolute position without requiring widget registration
+- Minimal Flutter integration reduced to two lines in `main.dart`: import + `if (kDebugMode) await McpEventServer.start()`
+- `McpMetadataKey` and widget registration are now optional — coordinate-based testing requires zero app changes beyond starting the server
+
+---
+
+## [1.0.0] - [1.0.6]
+
+Internal development iterations (see git log)
+
+---
+
 ## [0.3.4] - 2026-03-09
 
 ### Added
@@ -11,7 +30,7 @@
 ## [0.3.1] - 2026-03-09
 
 ### Fixed
-- `getRenderBox` ahora encuentra widgets que usan `McpMetadataKey` directamente como key (sin `getGlobalKey()`). Agrega fallback de element-tree walk: busca el primer elemento cuyo `widget.key.id` coincida, luego retorna su primer `RenderBox` descendiente. Fix para tap/swipe/scroll que fallaban cuando la app usa `const McpMetadataKey(...)` directo en widgets.
+- `getRenderBox` now finds widgets that use `McpMetadataKey` directly as a key (without `getGlobalKey()`). Added fallback element-tree walk: finds the first element whose `widget.key.id` matches, then returns its first `RenderBox` descendant. Fix for tap/swipe/scroll that failed when the app uses `const McpMetadataKey(...)` directly on widgets.
 
 ---
 

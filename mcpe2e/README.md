@@ -1,161 +1,177 @@
-# mcpe2e
+# mcpe2e — Flutter Library
 
-Let Claude control a real Flutter app on a device — tap, type, scroll, assert — using MCP tools.
+[![version](https://img.shields.io/badge/version-1.0.7-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v1.0.7)
+
+mcpe2e is a Flutter library that embeds a lightweight HTTP server inside your app. When an AI agent (Claude, Codex, Gemini) calls an MCP tool, `mcpe2e_server` translates it to an HTTP request that reaches this server, which then executes the corresponding gesture or assertion on the live widget tree.
+
+This library runs **inside the app on the device**. It is the receiving end of the testing pipeline.
 
 ```
-Claude → MCP → mcpe2e_server → HTTP → [your app on device] → real gestures
+mcpe2e_server (on your machine)
+      |
+      |  HTTP  localhost:7778 → device:7777
+      v
+mcpe2e (this library, inside the app)
+      |
+      v
+Real pointer events via GestureBinding
 ```
 
 ---
 
-## How it works
+## Installation
 
-There are two components:
-
-| Component | What it does |
-|-----------|-------------|
-| **mcpe2e** *(this package)* | Runs inside your app. Starts an HTTP server on :7777 that executes real widget gestures. |
-| **[mcpe2e_server](https://github.com/JhonaCodes/mcpe2e/tree/main/mcpe2e_server)** | Runs on your machine. Bridges Claude's MCP tools to HTTP calls to the app. |
-
----
-
-## Step 1 — Install the MCP server (once, on your machine)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/JhonaCodes/mcpe2e/main/mcpe2e_server/install.sh | bash
-```
-
-This downloads the binary and registers it with Claude Code automatically. You only do this once.
-
----
-
-## Step 2 — Add mcpe2e to your Flutter app
+Add as a `dev_dependency`:
 
 ```yaml
 # pubspec.yaml
-dependencies:
-  mcpe2e: ^0.3.0
+dev_dependencies:
+  mcpe2e:
+    git:
+      url: https://github.com/JhonaCodes/mcpe2e.git
+      path: mcpe2e
+      ref: v1.0.7
 ```
 
-> Must be in `dependencies`, not `dev_dependencies` — `McpMetadataKey` extends Flutter's `Key`
-> and is used in widget tree code. The server never starts in release builds (production safe).
+```bash
+flutter pub get
+```
+
+Then install the MCP server and register your AI agents:
+
+```bash
+dart run mcpe2e:setup
+```
+
+This downloads `mcpe2e_server` to `~/.local/bin/` and opens an interactive menu to register it with Claude Code, Claude Desktop, Codex CLI, or Gemini CLI.
+
+This is a `dev_dependency` because the server is only active in debug builds and the library has no effect in release.
 
 ---
 
-## Step 3 — Create a testing file
+## Minimal Setup
 
 ```dart
-// lib/testing/mcp_testing.dart
-import 'package:mcpe2e/mcpe2e.dart';
 import 'package:flutter/foundation.dart';
+import 'package:mcpe2e/mcpe2e.dart';
 
-// Define keys for each testable widget
-const _loginButton = McpMetadataKey(
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (kDebugMode) await McpEventServer.start();
+  runApp(const MyApp());
+}
+```
+
+`McpEventServer.start()` starts the HTTP server on port `7777`. In release builds it is a no-op — the guard is built into the library, but an explicit `kDebugMode` check makes the intent clear.
+
+The server stops automatically when the app closes via `WidgetsBindingObserver`. No manual cleanup needed.
+
+---
+
+## HTTP Endpoints
+
+The library exposes these endpoints on `localhost:7777`:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/ping` | GET | Health check. Returns `{"status":"ok","port":7777}` |
+| `/mcp/context` | GET | Registered widgets with their metadata |
+| `/mcp/tree` | GET | Full widget tree — values, states, coordinates |
+| `/mcp/screenshot` | GET | Current screen as PNG (base64 encoded) |
+| `/action` | GET | Execute an event via query params (`?key=...&type=...`) |
+| `/event` | POST | Execute an event via JSON body |
+| `/widgets` | GET | List registered widget IDs. Accepts `?metadata=true` for full context |
+
+### /mcp/tree response
+
+`GET /mcp/tree` returns the full widget tree without any widget registration. For each element it includes:
+
+- Widget type and text content (Text, TextField, Button, AppBar, etc.)
+- Interactive state (enabled, checked, selected, slider value)
+- Screen coordinates: `x`, `y`, `w`, `h` in logical pixels
+- Presence of Dialogs and SnackBars
+
+Use the `x` and `y` values with `tap_at` to interact with any element without registration.
+
+### /mcp/screenshot response
+
+`GET /mcp/screenshot` captures the screen using Flutter's internal layer tree. Returns:
+
+```json
+{ "screenshot": "<base64 PNG>" }
+```
+
+Returns `{"error":"not_available_in_release"}` in release builds.
+
+---
+
+## Zero-config Testing (Primary Approach)
+
+The recommended workflow does not require widget registration:
+
+```
+inspect_ui   →  receives full widget tree with x, y, w, h for every element
+tap_at x: 195 y: 420   →  taps at those coordinates
+```
+
+This works for any widget, including dynamic list items, generated cards, and widgets without keys.
+
+---
+
+## Optional: Named Widget Keys
+
+For scenarios where you want stable named access to specific widgets, use `McpMetadataKey`. It extends Flutter's `Key` and can be assigned to any widget directly.
+
+```dart
+import 'package:mcpe2e/mcpe2e.dart';
+
+const loginButton = McpMetadataKey(
   id: 'auth.login_button',
   widgetType: McpWidgetType.button,
-  description: 'Login button',
+  description: 'Login submit button',
   screen: 'LoginScreen',
 );
-const _emailField = McpMetadataKey(
+
+const emailField = McpMetadataKey(
   id: 'auth.email_field',
   widgetType: McpWidgetType.textField,
   description: 'Email input',
   screen: 'LoginScreen',
 );
-
-// Map used by mcpKey() to look up keys by ID
-const _keys = <String, McpMetadataKey>{
-  'auth.login_button': _loginButton,
-  'auth.email_field':  _emailField,
-};
-
-/// Call this from main() before runApp().
-Future<void> initMcpTesting() async {
-  if (!kDebugMode) return; // no-op in release
-  McpEvents.instance
-    ..registerWidget(_loginButton)
-    ..registerWidget(_emailField);
-  await McpEventServer.start(); // starts HTTP server on :7777
-}
-
-/// Returns the key in debug mode, null in release.
-Key? mcpKey(String id) => kDebugMode ? _keys[id] : null;
 ```
 
----
-
-## Step 4 — Initialize in main.dart
+Register them before starting the server:
 
 ```dart
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initMcpTesting();
+  if (kDebugMode) {
+    McpEvents.instance
+      ..registerWidget(loginButton)
+      ..registerWidget(emailField);
+    await McpEventServer.start();
+  }
   runApp(const MyApp());
 }
 ```
 
----
-
-## Step 5 — Assign keys to your widgets
-
-`McpMetadataKey` extends Flutter's `Key` — use it directly:
+Assign directly to widgets:
 
 ```dart
-// Direct
 ElevatedButton(
-  key: _loginButton,
+  key: loginButton,
   onPressed: _handleLogin,
   child: const Text('Login'),
 )
 
-// With fallback for release (when you have existing keys)
-TextFormField(
-  key: mcpKey('auth.email_field') ?? WidgetKeys.emailField,
-)
+TextFormField(key: emailField)
 ```
 
----
+Registered widgets appear in `get_app_context` and can be targeted by ID in all gesture and assertion tools (`tap_widget`, `input_text`, `assert_text`, etc.).
 
-## Step 6 — Run and connect
+### Dynamic widgets
 
-```bash
-# Terminal 1 — run the app in debug
-flutter run
-
-# Terminal 2 — forward the port once the app is on screen
-adb forward tcp:7778 tcp:7777      # Android
-# iproxy 7778 7777                 # iOS
-# Desktop: no setup needed (set TESTBRIDGE_URL=http://localhost:7777)
-```
-
-Verify the connection:
-```bash
-curl http://localhost:7778/ping
-# → {"status":"ok","port":7777}
-```
-
----
-
-## Step 7 — Ask Claude to test
-
-With the app running and the port forwarded, use Claude's MCP tools:
-
-```
-get_app_context        → see registered widgets on the current screen
-tap_widget             → tap a widget by ID
-input_text             → type into a text field
-assert_widget          → verify text or state
-scroll_widget          → scroll a list
-```
-
-Example prompt to Claude:
-> "Open the app, go to login, type 'user@example.com' in the email field and tap Login"
-
----
-
-## Dynamic widgets (lists, cards)
-
-Register widgets at runtime and unregister when disposed:
+For list items or cards generated at runtime, register and unregister in the widget's state lifecycle:
 
 ```dart
 class _OrderCardState extends State<OrderCard> {
@@ -164,7 +180,10 @@ class _OrderCardState extends State<OrderCard> {
   @override
   void initState() {
     super.initState();
-    _key = McpMetadataKey(id: 'order.card.${widget.id}', widgetType: McpWidgetType.card);
+    _key = McpMetadataKey(
+      id: 'order.card.${widget.id}',
+      widgetType: McpWidgetType.card,
+    );
     McpEvents.instance.registerWidget(_key);
   }
 
@@ -181,46 +200,48 @@ class _OrderCardState extends State<OrderCard> {
 
 ---
 
-## Widget ID convention
+## Widget ID Convention
 
 ```
 module.element[.variant]
 
-auth.login_button       Button on login screen
-auth.email_field        Email input on login screen
-order.card.{uuid}       Dynamic card with runtime ID
-modal.confirm.delete    Dialog/modal
+auth.login_button          Login button
+auth.email_field           Email input
+order.form.price           Price field inside an order form
+order.card.{uuid}          Dynamic card identified at runtime
+settings.dark_mode         Dark mode toggle
+modal.confirm.delete       Confirmation dialog
 ```
 
 ---
 
-## Event types
+## Production Safety
 
-**Gestures**: `tap` · `doubleTap` · `longPress` · `swipe` · `drag` · `scroll`
-
-**Input**: `textInput` · `clearText` · `selectDropdown` · `toggle` · `setSliderValue`
-
-**Nav**: `hideKeyboard` · `pressBack` · `scrollUntilVisible` · `tapByLabel` · `wait`
-
-**Assertions**: `assertExists` · `assertText` · `assertVisible` · `assertEnabled` · `assertValue` · `assertCount`
+- `McpEventServer.start()` exits immediately if not in debug or profile mode.
+- `GET /mcp/screenshot` returns `{"error":"not_available_in_release"}` in release builds.
+- `McpMetadataKey` is a plain `Key` subclass — zero overhead in release.
+- The server never starts unless `start()` is explicitly called.
 
 ---
 
-## Platform connectivity
+## Platform Connectivity
+
+The library listens on port `7777` on the device. The `mcpe2e_server` on your machine connects to it via port `7778` after forwarding is set up.
 
 | Platform | Command |
 |----------|---------|
 | Android | `adb forward tcp:7778 tcp:7777` |
-| iOS | `iproxy 7778 7777` |
-| Desktop | `TESTBRIDGE_URL=http://localhost:7777` (no forward needed) |
+| iOS | `iproxy 7778 7777` (requires `brew install usbmuxd`) |
+| Desktop | No forwarding — set `TESTBRIDGE_URL=http://localhost:7777` |
 
----
+`McpConnectivity.setup()` runs automatically inside `McpEventServer.start()` and configures platform-specific forwarding where applicable.
 
-## Production safety
+Verify the connection after forwarding:
 
-- Server never starts outside `kDebugMode` / `kProfileMode`
-- `McpMetadataKey` is a plain `Key` subclass — zero overhead in release
-- Screenshot returns `{"error":"not_available_in_release"}` in release builds
+```bash
+curl http://localhost:7778/ping
+# {"status":"ok","port":7777}
+```
 
 ---
 
@@ -228,7 +249,8 @@ modal.confirm.delete    Dialog/modal
 
 | Problem | Solution |
 |---------|----------|
-| `/ping` times out | App must be running in debug; check `adb forward` ran after app started |
-| `adb forward` fails | Run `adb devices` — device must appear |
-| Widget not found | Key must be registered AND widget must be visible on screen |
-| Tap has no effect | Widget may be scrolled off-screen or `onPressed` is null |
+| `/ping` times out | Confirm the app is running in debug mode. Re-run `adb forward` after the app starts. |
+| `adb forward` fails | Run `adb devices` — the device must be listed. |
+| Widget not found by key | The key must be registered and the widget must be in the current visible tree. |
+| Tap has no effect | The widget may be scrolled off-screen or its `onPressed` is null. Use `inspect_ui` to verify coordinates. |
+| Screenshot not available | Only works in debug or profile mode. |

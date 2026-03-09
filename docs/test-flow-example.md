@@ -1,269 +1,238 @@
-# Test Flow Example
+# Test Flow Examples
 
-Complete walkthrough of an AI-driven E2E test session using Claude + mcpe2e.
-
-## Scenario: Test the login flow
+Complete walkthroughs of AI-driven E2E test sessions using coordinate-based testing with `inspect_ui` + `tap_at`. No widget keys or registration required.
 
 ---
 
-### Tools available to Claude (27 total)
+## Example 1: Login flow
+
+### Scenario
+
+Test that a user can log in with valid credentials and land on the dashboard.
+
+### Step 1: Inspect the screen
 
 ```
-Context:     get_app_context · list_test_cases · inspect_ui · capture_screenshot
-Gestures:    tap_widget · double_tap_widget · long_press_widget · swipe_widget
-             scroll_widget · scroll_until_visible · tap_by_label
-Input:       input_text · clear_text · select_dropdown · toggle_widget · set_slider_value
-Keyboard:    hide_keyboard · press_back · wait
-Assertions:  assert_exists · assert_text · assert_visible · assert_enabled
-             assert_selected · assert_value · assert_count
+AI calls: inspect_ui
 ```
 
----
-
-### Step 1: Claude inspects the UI
-
-Before acting, Claude inspects what is on screen. Two options:
-
-**Option A — Registered widgets only** (faster, fewer tokens):
-```
-Claude calls: get_app_context
-```
 Response:
+
 ```json
 {
-  "screen": "LoginScreen",
-  "route": "/login",
-  "timestamp": "2026-03-09T10:00:00Z",
+  "widget_count": 14,
   "widgets": [
-    {
-      "key": "auth.email_field",
-      "type": "TextField",
-      "description": "Email input",
-      "capabilities": ["tap", "text_input", "clear", "assert_exists", "assert_text"]
-    },
-    {
-      "key": "auth.login_button",
-      "type": "ElevatedButton",
-      "description": "Login submit",
-      "capabilities": ["tap", "long_press", "double_tap", "assert_exists", "assert_text"]
-    }
+    { "type": "AppBar", "title": "Login", "depth": 2 },
+    { "type": "Text", "value": "Welcome back", "depth": 4, "x": 16, "y": 120, "w": 200, "h": 24 },
+    { "type": "TextField", "hint": "Email", "enabled": true, "depth": 5, "x": 16, "y": 200, "w": 358, "h": 56 },
+    { "type": "TextField", "hint": "Password", "enabled": true, "depth": 5, "x": 16, "y": 276, "w": 358, "h": 56 },
+    { "type": "ElevatedButton", "label": "Login", "enabled": false, "depth": 6, "x": 20, "y": 360, "w": 350, "h": 52 },
+    { "type": "Text", "value": "Forgot password?", "depth": 7, "x": 100, "y": 430, "w": 160, "h": 20 }
   ]
 }
 ```
 
-**Option B — Full widget tree** (no registration needed, most complete):
-```
-Claude calls: inspect_ui
-```
-Response:
-```json
-{
-  "timestamp": "2026-03-09T10:00:00Z",
-  "widget_count": 18,
-  "widgets": [
-    { "type": "AppBar", "title": "Login", "depth": 3 },
-    { "type": "Text", "value": "Welcome back", "depth": 5, "x": 16.0, "y": 120.0 },
-    { "type": "TextField", "hint": "Email", "enabled": true, "depth": 6,
-      "key": "auth.email_field", "x": 16.0, "y": 200.0 },
-    { "type": "TextField", "hint": "Password", "enabled": true, "depth": 6,
-      "key": "auth.password_field", "x": 16.0, "y": 280.0 },
-    { "type": "ElevatedButton", "label": "Login", "enabled": false, "depth": 7,
-      "key": "auth.login_button" },
-    { "type": "Text", "value": "Forgot password?", "depth": 8 }
-  ]
-}
-```
+The AI can see the login button is disabled (`"enabled": false`). It must fill both fields first.
 
-> `inspect_ui` found that the login button is **disabled** (`enabled: false`). Claude knows it must fill both fields first.
-
----
-
-### Step 2: Claude types the email
+### Step 2: Type the email
 
 ```
-Claude calls: input_text
+AI calls: input_text
   key: "auth.email_field"
   text: "user@example.com"
 ```
 
-The Flutter library:
-1. Finds the widget by key `auth.email_field`
-2. Locates the `EditableText` descendant via `visitChildElements`
-3. Updates the `TextEditingController` value
-4. Dispatches focus events
-
----
-
-### Step 3: Claude types the password
+### Step 3: Type the password
 
 ```
-Claude calls: input_text
+AI calls: input_text
   key: "auth.password_field"
   text: "secret123"
 ```
 
----
-
-### Step 4: Claude verifies the button is now enabled
+### Step 4: Inspect again to confirm the button is now enabled
 
 ```
-Claude calls: assert_enabled
-  key: "auth.login_button"
+AI calls: inspect_ui
 ```
 
-Response: `{"success":true,"widgetKey":"auth.login_button","eventType":"assertEnabled"}`
+Response (button entry only):
 
-Or using `inspect_ui` again — the button entry now shows `"enabled": true`.
-
----
-
-### Step 5: Claude taps the login button
-
-```
-Claude calls: tap_widget
-  key: "auth.login_button"
+```json
+{ "type": "ElevatedButton", "label": "Login", "enabled": true, "x": 20, "y": 360, "w": 350, "h": 52 }
 ```
 
-The Flutter library:
-1. Finds the widget by key
-2. Gets its `RenderBox` and calculates the center point
-3. Dispatches `PointerDownEvent` + `PointerUpEvent` via `GestureBinding`
-
----
-
-### Step 6: Claude waits for navigation
+### Step 5: Tap the login button using coordinates
 
 ```
-Claude calls: wait
+AI calls: tap_at
+  x: 195   ← 20 + 350/2
+  y: 386   ← 360 + 52/2
+```
+
+### Step 6: Wait for navigation
+
+```
+AI calls: wait
   duration_ms: 2000
 ```
 
----
-
-### Step 7: Claude verifies the navigation result
+### Step 7: Verify the result
 
 ```
-Claude calls: inspect_ui
+AI calls: inspect_ui
 ```
 
-The response now shows `DashboardScreen` content — the login succeeded.
-
-Or using a targeted assertion on the screen identifier:
-```
-Claude calls: assert_exists
-  key: "screen.dashboard"
-```
-
----
-
-### Step 8: Claude takes a screenshot (optional visual check)
+Response now contains `DashboardScreen` content — the login succeeded.
 
 ```
-Claude calls: capture_screenshot
+AI calls: capture_screenshot
 ```
 
-Claude receives the PNG image and can visually confirm the dashboard layout.
+The AI receives the PNG and can visually confirm the dashboard layout.
 
----
-
-## Full conversation example
+### Step 8: Assert a specific text on screen
 
 ```
-User: "Test the login flow with user@example.com and password secret123"
+AI calls: assert_text
+  key: "dashboard.greeting"
+  text: "Hello, user"
+```
 
-Claude: Checking what's on screen...
-  → inspect_ui
-  → "Login screen. Email field (empty), password field (empty),
-     login button (disabled — needs both fields filled)."
+Or without a key, verify visually using `inspect_ui`:
 
-Claude: Typing email...
-  → input_text(key=auth.email_field, text=user@example.com)
-
-Claude: Typing password...
-  → input_text(key=auth.password_field, text=secret123)
-
-Claude: Checking the button is enabled...
-  → assert_enabled(key=auth.login_button)
-  → "Button is enabled. Tapping..."
-
-  → tap_widget(key=auth.login_button)
-  → wait(duration_ms=2000)
-
-Claude: Verifying the result...
-  → inspect_ui
-  → "Now on DashboardScreen. Login flow passed."
+```json
+{ "type": "Text", "value": "Hello, user", "depth": 5, "x": 16, "y": 80 }
 ```
 
 ---
 
-## Verifying data values on screen
+## Example 2: Dynamic list — tapping a card without keys
+
+### Scenario
+
+The app displays a list of orders. Each card is built dynamically from an API response and has no registered key. The AI must find and tap a specific card.
+
+### Step 1: Inspect the screen
 
 ```
-User: "Verify the order total is $150.00"
-
-Claude:
-  → inspect_ui
-  → Found: { "type": "Text", "value": "Total: $149.99", "depth": 8 }
-  → "Total shows $149.99, not $150.00. Value mismatch detected."
+AI calls: inspect_ui
 ```
 
-> `inspect_ui` reads the exact `Text` widget value from the live widget tree — no selectors, no OCR, exact string.
+Response (excerpt):
+
+```json
+{
+  "widget_count": 31,
+  "widgets": [
+    { "type": "AppBar", "title": "Orders", "depth": 2 },
+    { "type": "Card", "depth": 4, "x": 12, "y": 100, "w": 370, "h": 90 },
+    { "type": "Text", "value": "Order #1042", "depth": 6, "x": 24, "y": 115, "w": 180, "h": 22 },
+    { "type": "Text", "value": "Pending", "depth": 6, "x": 280, "y": 115, "w": 80, "h": 22 },
+    { "type": "Card", "depth": 4, "x": 12, "y": 202, "w": 370, "h": 90 },
+    { "type": "Text", "value": "Order #1043", "depth": 6, "x": 24, "y": 217, "w": 180, "h": 22 },
+    { "type": "Text", "value": "Shipped", "depth": 6, "x": 280, "y": 217, "w": 80, "h": 22 },
+    { "type": "Card", "depth": 4, "x": 12, "y": 304, "w": 370, "h": 90 },
+    { "type": "Text", "value": "Order #1044", "depth": 6, "x": 24, "y": 319, "w": 180, "h": 22 },
+    { "type": "Text", "value": "Delivered", "depth": 6, "x": 280, "y": 319, "w": 80, "h": 22 }
+  ]
+}
+```
+
+### Step 2: Identify the target card and calculate its center
+
+The AI wants to open "Order #1043". From `inspect_ui`:
+- Card at `x: 12, y: 202, w: 370, h: 90`
+- Center: `x = 12 + 370/2 = 197`, `y = 202 + 90/2 = 247`
+
+### Step 3: Tap the card
+
+```
+AI calls: tap_at
+  x: 197
+  y: 247
+```
+
+### Step 4: Wait and verify navigation
+
+```
+AI calls: wait
+  duration_ms: 1000
+
+AI calls: inspect_ui
+```
+
+Response now shows the order detail screen with title "Order #1043".
+
+No widget keys were registered. No code was changed in the app. The AI found the widget from the live tree and tapped it by coordinate.
 
 ---
 
-## Form validation scenario
+## Example 3: Verifying a value on screen
+
+### Scenario
+
+After completing a checkout, verify that the order total displayed on screen matches the expected amount.
+
+### Step 1: Inspect the confirmation screen
 
 ```
-User: "Test login with an invalid password"
-
-Claude:
-  → input_text(key=auth.email_field, text=user@example.com)
-  → input_text(key=auth.password_field, text=abc)   ← only 3 chars
-  → tap_widget(key=auth.login_button)
-  → wait(duration_ms=500)
-  → inspect_ui
-  → Found: { "type": "Text", "value": "Password must be at least 6 characters", "key": "auth.error_message" }
-  → "Validation error shown correctly. Test passed."
+AI calls: inspect_ui
 ```
+
+Response (excerpt):
+
+```json
+{
+  "widget_count": 18,
+  "widgets": [
+    { "type": "AppBar", "title": "Order Confirmation", "depth": 2 },
+    { "type": "Text", "value": "Subtotal", "depth": 5, "x": 16, "y": 200 },
+    { "type": "Text", "value": "$142.00", "depth": 5, "x": 280, "y": 200 },
+    { "type": "Text", "value": "Shipping", "depth": 5, "x": 16, "y": 232 },
+    { "type": "Text", "value": "$8.00", "depth": 5, "x": 280, "y": 232 },
+    { "type": "Text", "value": "Total", "depth": 5, "x": 16, "y": 280 },
+    { "type": "Text", "value": "$150.00", "depth": 5, "x": 280, "y": 280, "w": 80, "h": 24 }
+  ]
+}
+```
+
+### Step 2: The AI reads the value directly from the widget tree
+
+The `inspect_ui` response includes the exact string rendered by each `Text` widget. The AI finds `"$150.00"` next to `"Total"` and confirms it matches the expected value.
+
+No assertion tool is needed — the value is already in the tree response. If a mismatch is found, the AI reports it with the exact observed value.
+
+### Step 3: Take a screenshot for a visual record
+
+```
+AI calls: capture_screenshot
+```
+
+The screenshot and the tree data together provide a complete record of the screen state at that point in the test.
 
 ---
 
-## Dropdown selection
+## Summary: coordinate-based workflow
+
+Every test follows the same pattern:
 
 ```
-User: "Select 'Express' in the shipping dropdown"
+inspect_ui
+  → read widget type, label, x, y, w, h
+  → calculate center: cx = x + w/2, cy = y + h/2
 
-Claude:
-  → get_app_context          (find the dropdown key)
-  → select_dropdown(key=order.shipping_type, value=Express)
-  → inspect_ui               (verify selection applied)
+tap_at x: cx y: cy
+  → real tap dispatched via GestureBinding
+
+wait duration_ms: N
+  → allow animations and navigation to settle
+
+inspect_ui
+  → verify new screen content or text values
+
+capture_screenshot
+  → visual confirmation
 ```
 
----
-
-## Scroll and interact
-
-```
-User: "Tap the Cancel button on the third item in the list"
-
-Claude:
-  → scroll_until_visible(key=order.list, target_key=order.item.2)
-  → tap_widget(key=order.item.2.cancel_button)
-  → wait(duration_ms=1000)
-  → assert_exists(key=modal.confirm.cancel)   ← confirm dialog appeared
-```
-
----
-
-## Settings interaction
-
-```
-User: "Set volume to 75% and verify notifications are enabled"
-
-Claude:
-  → set_slider_value(key=settings.volume_slider, value=0.75)
-  → inspect_ui
-  → Found: { "type": "Slider", "value": 0.75, "key": "settings.volume_slider" } ✓
-  → Found: { "type": "Switch", "value": true, "key": "settings.notifications_switch" } ✓
-  → "Volume is at 75%. Notifications are enabled."
-```
+This works for any widget in the tree: buttons, cards, list items, tabs, chips, icons. No keys. No registration. No app code changes required.

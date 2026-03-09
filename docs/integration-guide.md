@@ -1,24 +1,30 @@
 # Integration Guide
 
-Step-by-step guide to add mcpe2e to any existing Flutter app.
-
-## Prerequisites
-
-- Flutter app running in debug or profile mode
-- [mcpe2e_server](../mcpe2e_server) compiled and registered with Claude
-- **Android**: ADB installed, device connected via USB
-- **iOS**: `iproxy` installed (`brew install usbmuxd`)
-- **Desktop**: nothing extra — server binds directly to localhost
+Step-by-step guide to add `mcpe2e` to any existing Flutter app and run your first AI-driven E2E test.
 
 ---
 
-## Step 1: Add the dependency
+## Prerequisites
+
+- Flutter app running in **debug or profile mode**
+- Device connected via USB or simulator running
+- **Android**: ADB installed and device authorized (`adb devices`)
+- **iOS**: `iproxy` installed (`brew install usbmuxd`)
+- **Desktop**: nothing extra — the server binds directly to localhost
+
+---
+
+## Step 1: Add the Flutter dependency
+
+Add `mcpe2e` as a dev dependency in your app's `pubspec.yaml`:
 
 ```yaml
-# pubspec.yaml
 dev_dependencies:
   mcpe2e:
-    path: /path/to/mcpe2e   # or use a pub.dev version once published
+    git:
+      url: https://github.com/JhonaCodes/mcpe2e.git
+      ref: v1.0.7
+      path: mcpe2e
 ```
 
 ```bash
@@ -27,161 +33,48 @@ flutter pub get
 
 ---
 
-## Step 2: Define your widget keys
+## Step 2: Install mcpe2e_server and register your AI agents
 
-Create a central file for all testable widget keys. `McpMetadataKey` extends Flutter's `Key` — assign it directly to the widget's `key` parameter.
+```bash
+dart run mcpe2e:setup
+```
+
+This command downloads the `mcpe2e_server` binary for your platform, installs it to `~/.local/bin/`, and opens the agent registration menu. Select which AI agents you want to enable (Claude Code, Claude Desktop, Codex CLI, Gemini CLI) and confirm.
+
+That's all. The agent is now configured.
+
+To change registrations later:
+
+```bash
+mcpe2e_server setup
+```
+
+---
+
+## Step 3: Start the server in main.dart
+
+The minimum integration is two lines: import the package and start the server in debug mode.
 
 ```dart
-// lib/testing/mcp_keys.dart
 import 'package:mcpe2e/mcpe2e.dart';
-
-abstract class McpKeys {
-  static const loginEmail = McpMetadataKey(
-    id: 'auth.email_field',
-    widgetType: McpWidgetType.textField,
-    description: 'Email input on login screen',
-    screen: 'LoginScreen',
-  );
-
-  static const loginButton = McpMetadataKey(
-    id: 'auth.login_button',
-    widgetType: McpWidgetType.button,
-    description: 'Submit login credentials',
-    screen: 'LoginScreen',
-  );
-
-  static const itemList = McpMetadataKey(
-    id: 'home.item_list',
-    widgetType: McpWidgetType.list,
-    description: 'Main scrollable list',
-    screen: 'HomeScreen',
-  );
-
-  // Dynamic key — create one per runtime ID
-  static McpMetadataKey itemCard(String id) => McpMetadataKey(
-    id: 'home.card.$id',
-    widgetType: McpWidgetType.card,
-    screen: 'HomeScreen',
-  );
-}
-```
-
-**ID convention:** `module.element[.variant]`
-
-```
-auth.login_button        Static widget
-home.card.{uuid}         Dynamic widget with runtime ID
-state.loading            State indicator (use with assert_visible)
-screen.dashboard         Screen identifier (use with assert_exists after navigation)
-```
-
----
-
-## Step 3: Assign keys to widgets
-
-```dart
-import 'testing/mcp_keys.dart';
-
-// McpMetadataKey extends Key — assign directly
-TextField(
-  key: McpKeys.loginEmail,
-  controller: _emailController,
-  decoration: const InputDecoration(hintText: 'Email'),
-)
-
-ElevatedButton(
-  key: McpKeys.loginButton,
-  onPressed: _isLoading ? null : _handleLogin,  // null = disabled
-  child: const Text('Login'),
-)
-
-Checkbox(
-  key: const McpMetadataKey(
-    id: 'settings.remember_me',
-    widgetType: McpWidgetType.checkbox,
-  ),
-  value: _rememberMe,
-  onChanged: (v) => setState(() => _rememberMe = v ?? false),
-)
-```
-
----
-
-## Step 4: Register widgets and start the server
-
-```dart
-// lib/main.dart
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:mcpe2e/mcpe2e.dart';
-import 'testing/mcp_keys.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  _initE2E();
+  if (kDebugMode) await McpEventServer.start();
   runApp(const MyApp());
 }
-
-void _initE2E() {
-  // McpEventServer.start() is already a no-op in release builds,
-  // but the guard makes intent explicit.
-  if (!kDebugMode && !kProfileMode) return;
-
-  final mcp = McpEvents.instance;
-  mcp.registerWidget(McpKeys.loginEmail);
-  mcp.registerWidget(McpKeys.loginButton);
-  mcp.registerWidget(McpKeys.itemList);
-
-  McpEventServer.start();
-  // Automatically configures ADB forward (Android), iproxy (iOS),
-  // or direct localhost (Desktop). Logs the TESTBRIDGE_URL.
-}
 ```
+
+`McpEventServer.start()` is a no-op in release builds, so there is no risk of accidentally shipping it. The guard on `kDebugMode` makes the intent explicit.
+
+The server listens on port **7777** inside the device.
 
 ---
 
-## Step 5: Handle dynamic widgets
+## Step 4: Connect the device
 
-Register in `initState`, unregister in `dispose`:
-
-```dart
-class ItemCard extends StatefulWidget {
-  final String itemId;
-  const ItemCard({required this.itemId, super.key});
-
-  @override
-  State<ItemCard> createState() => _ItemCardState();
-}
-
-class _ItemCardState extends State<ItemCard> {
-  late final McpMetadataKey _key;
-
-  @override
-  void initState() {
-    super.initState();
-    _key = McpKeys.itemCard(widget.itemId);
-    McpEvents.instance.registerWidget(_key);
-  }
-
-  @override
-  void dispose() {
-    McpEvents.instance.unregisterWidget(_key.id);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      key: _key,
-      child: ListTile(title: Text('Item ${widget.itemId}')),
-    );
-  }
-}
-```
-
----
-
-## Step 6: Verify connectivity
+Forward the device port to your machine so `mcpe2e_server` can reach it:
 
 ```bash
 # Android
@@ -190,68 +83,144 @@ adb forward tcp:7778 tcp:7777
 # iOS
 iproxy 7778 7777
 
-# Verify
+# Desktop app running on the same machine — no forwarding needed
+# Use TESTBRIDGE_URL=http://localhost:7777
+```
+
+---
+
+## Step 5: Verify the connection
+
+```bash
+# Health check
 curl http://localhost:7778/ping
 # → {"status":"ok","port":7777}
 
-curl http://localhost:7778/mcp/context
-# → {"screen":"LoginScreen","widgets":[...]}
-
-# Inspect the full UI — no registration needed
+# Full widget tree — no registration needed
 curl http://localhost:7778/mcp/tree
 # → {"widget_count":14,"widgets":[{"type":"Text","value":"Login",...},...]}
 ```
 
+If `/ping` responds, the AI agent can now reach your app.
+
 ---
 
-## Step 7: Register mcpe2e_server with Claude
+## Step 6: Run your first test
 
-```bash
-# Option A: Download pre-compiled binary (recommended)
-curl -fsSL https://raw.githubusercontent.com/JhonaCodes/mcpe2e/main/mcpe2e_server/install.sh | bash
+The recommended approach is **coordinate-based**: use `inspect_ui` to find a widget's position on screen, then use `tap_at` to tap it. No widget keys or registration required.
 
-# Option B: Build from source
-cd mcpe2e_server
-dart pub get
-dart compile exe bin/mcp_server.dart -o mcpe2e_server
+### Example: tap the login button
 
-# Register with Claude Code
-claude mcp add mcpe2e \
-  --command ~/.local/bin/mcpe2e_server \
-  --env TESTBRIDGE_URL=http://localhost:7778
+**Inspect the screen first:**
+
+```
+AI calls: inspect_ui
 ```
 
-Claude can now call `tap_widget`, `input_text`, `inspect_ui`, `capture_screenshot`, and 26 more tools.
+Response (excerpt):
 
----
-
-## Bridging apps that already use ValueKey\<String\>
-
-If your app already uses `ValueKey<String>` consistently, no widget code changes are needed. Register matching `McpMetadataKey` instances with the same ID strings:
-
-```dart
-void _bridgeExistingKeys() {
-  // The HTTP server matches widgets by key string, so 'auth.login_button'
-  // will find any widget with ValueKey('auth.login_button') already in the tree.
-  McpEvents.instance.registerWidget(const McpMetadataKey(
-    id: 'auth.login_button',
-    widgetType: McpWidgetType.button,
-  ));
+```json
+{
+  "widget_count": 12,
+  "widgets": [
+    { "type": "TextField", "hint": "Email", "x": 16, "y": 220, "w": 358, "h": 56 },
+    { "type": "TextField", "hint": "Password", "x": 16, "y": 296, "w": 358, "h": 56 },
+    { "type": "ElevatedButton", "label": "Login", "x": 20, "y": 400, "w": 353, "h": 56 }
+  ]
 }
 ```
 
-Alternatively, use `inspect_ui` — it traverses the full widget tree and returns values for **all** widgets (Text, TextField, Button, Checkbox, etc.) regardless of whether they are registered.
+**Type in the fields and tap the button:**
+
+```
+AI calls: input_text
+  key: "auth.email_field"
+  text: "user@example.com"
+
+AI calls: input_text
+  key: "auth.password_field"
+  text: "secret123"
+
+AI calls: tap_at
+  x: 196   ← 20 + 353/2
+  y: 428   ← 400 + 56/2
+
+AI calls: wait
+  duration_ms: 2000
+
+AI calls: capture_screenshot
+```
+
+The AI receives the screenshot and can visually confirm the result, or call `inspect_ui` again to check the new screen content.
+
+---
+
+## Optional: register keys for frequently tested widgets
+
+If some widgets are tested repeatedly, you can register them with a `McpMetadataKey` so the AI can find them by name via `tap_widget` or `assert_exists` without needing to inspect coordinates each time.
+
+```dart
+import 'package:mcpe2e/mcpe2e.dart';
+import 'package:flutter/foundation.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (kDebugMode) {
+    McpEvents.instance.registerWidget(const McpMetadataKey(
+      id: 'auth.login_button',
+      widgetType: McpWidgetType.button,
+      description: 'Login submit button',
+      screen: 'LoginScreen',
+    ));
+    McpEvents.instance.registerWidget(const McpMetadataKey(
+      id: 'auth.email_field',
+      widgetType: McpWidgetType.textField,
+      description: 'Email input on login screen',
+      screen: 'LoginScreen',
+    ));
+    await McpEventServer.start();
+  }
+
+  runApp(const MyApp());
+}
+```
+
+Then assign the key directly to the widget:
+
+```dart
+ElevatedButton(
+  key: const McpMetadataKey(
+    id: 'auth.login_button',
+    widgetType: McpWidgetType.button,
+  ),
+  onPressed: _handleLogin,
+  child: const Text('Login'),
+)
+```
+
+Registered widgets appear in `get_app_context` and can be used with `tap_widget`, `assert_exists`, `assert_text`, and all other key-based tools.
+
+**ID convention:** `module.element[.variant]`
+
+```
+auth.login_button      Static widget
+auth.email_field       Text field
+home.card.{uuid}       Dynamic widget with runtime ID
+state.loading          Loading indicator
+screen.dashboard       Screen identifier
+```
 
 ---
 
 ## Troubleshooting
 
 | Problem | Solution |
-|---------|----------|
-| `/ping` not responding | App must be in debug or profile mode; check port 7777 is not blocked |
-| ADB forward fails | `adb devices` — device must be listed and authorized |
-| Widget not found by key | Key must be registered AND the widget must be mounted on screen |
-| Tap has no effect | `onPressed` may be null (disabled), or widget is off-screen |
-| Text input fails | Widget must wrap a `TextField` or `TextFormField` |
-| Screenshot returns error | Only available in debug/profile; returns `{"error":"not_available_in_release"}` in release |
-| `inspect_ui` returns empty | App may not have rendered its first frame yet; call `wait` first |
+|---|---|
+| `/ping` returns connection refused | App must be in debug or profile mode. Check that `McpEventServer.start()` was called. |
+| ADB forward fails | Run `adb devices` — device must be listed and authorized. |
+| `inspect_ui` returns empty or very few widgets | App may not have rendered its first frame yet. Call `wait` first. |
+| `tap_at` taps the wrong element | Recalculate center: `x = widget.x + widget.w / 2`, `y = widget.y + widget.h / 2`. |
+| `input_text` has no effect | The widget must contain a `TextField` or `TextFormField` descendant. |
+| Screenshot returns error | Only available in debug/profile builds. Returns `{"error":"not_available_in_release"}` in release. |
+| Widget not found by key | The widget must be registered AND currently mounted in the tree (on screen). |
