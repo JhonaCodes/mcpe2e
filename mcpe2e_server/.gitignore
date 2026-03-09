@@ -1,0 +1,12 @@
+# Compiled binaries
+mcpe2e_server
+mcpe2e_server-macos-arm64
+mcpe2e_server-macos-x86_64
+mcpe2e_server-linux-x86_64
+mcpe2e_server.exe
+mcpe2e
+
+# Dart
+.dart_tool/
+pubspec.lock
+*.DS_Store

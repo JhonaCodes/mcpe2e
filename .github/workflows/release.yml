@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macos-arm64
+            artifact: mcpe2e_server-macos-arm64
+          - os: macos-12
+            label: macos-x86_64
+            artifact: mcpe2e_server-macos-x86_64
+          - os: ubuntu-latest
+            label: linux-x86_64
+            artifact: mcpe2e_server-linux-x86_64
+          - os: windows-latest
+            label: windows-x86_64
+            artifact: mcpe2e_server.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        working-directory: mcpe2e_server
+        run: dart pub get
+
+      - name: Compile binary
+        working-directory: mcpe2e_server
+        run: dart compile exe bin/mcp_server.dart -o ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.label }}
+          path: mcpe2e_server/${{ matrix.artifact }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release and upload binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
