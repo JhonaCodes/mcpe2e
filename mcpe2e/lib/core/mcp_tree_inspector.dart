@@ -150,7 +150,7 @@ class McpTreeInspector {
         mcpKey,
         extra: {
           if (value != null && value.isNotEmpty) 'value': value,
-          if (hint != null) 'hint': hint,
+          'hint': ?hint,
           'enabled': enabled,
         },
       );
@@ -181,7 +181,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {if (label != null) 'label': label, 'enabled': enabled},
+        extra: {'label': ?label, 'enabled': enabled},
       );
     }
 
@@ -193,7 +193,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {if (label != null) 'label': label, 'enabled': enabled},
+        extra: {'label': ?label, 'enabled': enabled},
       );
     }
 
@@ -205,7 +205,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {if (label != null) 'label': label, 'enabled': enabled},
+        extra: {'label': ?label, 'enabled': enabled},
       );
     }
 
@@ -217,7 +217,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {if (label != null) 'label': label, 'enabled': enabled},
+        extra: {'label': ?label, 'enabled': enabled},
       );
     }
 
@@ -229,7 +229,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {if (tooltip != null) 'tooltip': tooltip, 'enabled': enabled},
+        extra: {'tooltip': ?tooltip, 'enabled': enabled},
       );
     }
 
@@ -292,10 +292,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {
-          if (widget.initialValue != null)
-            'value': widget.initialValue.toString(),
-        },
+        extra: {'value': ?widget.initialValue?.toString()},
       );
     }
 
@@ -308,7 +305,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {if (label != null) 'semanticLabel': label},
+        extra: {'semanticLabel': ?label},
       );
     }
 
@@ -322,7 +319,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {if (titleText != null) 'title': titleText},
+        extra: {'title': ?titleText},
       );
     }
 
@@ -336,7 +333,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {if (titleText != null) 'title': titleText, 'visible': true},
+        extra: {'title': ?titleText, 'visible': true},
       );
     }
 
@@ -349,7 +346,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {if (content != null) 'content': content, 'visible': true},
+        extra: {'content': ?content, 'visible': true},
       );
     }
 
@@ -369,9 +366,9 @@ class McpTreeInspector {
     return {
       'type': type,
       'depth': depth,
-      if (key != null) 'key': key,
+      'key': ?key,
       ...extra,
-      if (pos != null) ...pos,
+      ...?pos,
     };
   }
 

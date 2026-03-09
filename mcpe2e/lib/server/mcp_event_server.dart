@@ -22,13 +22,15 @@
 //   Desktop  → localhost:7777 directo (sin forwarding)
 //   Web      → no soportado
 //
-// Para iniciar:
-//   if (kDebugMode) await McpEventServer.start();
+// Usage:
+//   await McpEventServer.start();   // call once in main()
+//   // server stops automatically when the app closes
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:logger_rs/logger_rs.dart';
 
 import '../core/mcp_screen_capture.dart';
@@ -37,15 +39,29 @@ import '../events/mcp_events_core.dart';
 import '../events/mcp_event_type.dart';
 import '../platform/mcp_connectivity.dart';
 
+// ── Lifecycle observer ────────────────────────────────────────────────────────
+
+/// Observes the app lifecycle and stops the HTTP server when the app closes.
+class _McpLifecycleObserver extends WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      McpEventServer.stop();
+    }
+  }
+}
+
 // ── Server ────────────────────────────────────────────────────────────────────
 
-/// Servidor HTTP que expone la API de E2E testing al servidor MCP externo.
+/// HTTP server that exposes the E2E testing API to the external MCP server.
 ///
-/// Corre dentro de la app en modo debug. Escucha en :7777 por defecto.
-/// McpConnectivity configura el forwarding de plataforma al arrancar.
+/// Runs inside the app in debug/profile mode. Listens on :7777 by default.
+/// Automatically stops when the app is closed (AppLifecycleState.detached).
+/// McpConnectivity configures platform forwarding on startup.
 class McpEventServer {
   static HttpServer? _server;
   static bool _isRunning = false;
+  static final _observer = _McpLifecycleObserver();
 
   /// Puerto donde escucha el HTTP server dentro de la app (default 7777).
   static int port = 7777;
@@ -92,7 +108,10 @@ class McpEventServer {
       _server = await HttpServer.bind(host, port, shared: true);
       _isRunning = true;
 
-      // Configurar conectividad de plataforma (ADB forward, iproxy, etc.)
+      // Register lifecycle observer — auto-stops when the app closes
+      WidgetsBinding.instance.addObserver(_observer);
+
+      // Configure platform connectivity (ADB forward, iproxy, etc.)
       final connectivity = await McpConnectivity.setup(
         appPort: port,
         forwardPort: forwardPort,
@@ -113,9 +132,10 @@ class McpEventServer {
     }
   }
 
-  /// Detiene el servidor HTTP.
+  /// Stops the HTTP server and removes the lifecycle observer.
   static Future<void> stop() async {
     if (!_isRunning || _server == null) return;
+    WidgetsBinding.instance.removeObserver(_observer);
     await _server!.close(force: true);
     _server = null;
     _isRunning = false;
@@ -442,14 +462,14 @@ class McpEventServer {
   static void _logStartup(McpConnectivityInfo info) {
     Log.d('');
     Log.d('╔══════════════════════════════════════════════════╗');
-    Log.d('║           mcpe2e HTTP Server iniciado            ║');
+    Log.d('║           mcpe2e HTTP Server started            ║');
     Log.d('╠══════════════════════════════════════════════════╣');
-    Log.d('║ Plataforma : ${info.platform.padRight(35)}║');
+    Log.d('║ Platform : ${info.platform.padRight(35)}║');
     Log.d(
       '║ App URL    : http://$host:$port${' ' * (27 - '$host:$port'.length)}║',
     );
     Log.d('╠══════════════════════════════════════════════════╣');
-    Log.d('║ Endpoints disponibles:                           ║');
+    Log.d('║ Endpoints:                           ║');
     Log.d('║   GET  /ping                                     ║');
     Log.d('║   GET  /mcp/context                              ║');
     Log.d('║   GET  /mcp/tree                                 ║');
