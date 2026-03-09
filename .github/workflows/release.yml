@@ -19,9 +19,6 @@ jobs:
           - os: macos-latest
             label: macos-arm64
             artifact: mcpe2e_server-macos-arm64
-          - os: macos-12
-            label: macos-x86_64
-            artifact: mcpe2e_server-macos-x86_64
           - os: ubuntu-latest
             label: linux-x86_64
             artifact: mcpe2e_server-linux-x86_64
