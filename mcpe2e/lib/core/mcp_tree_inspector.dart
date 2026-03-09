@@ -87,7 +87,11 @@ class McpTreeInspector {
   /// Extrae datos del widget si es interesante y siempre continúa
   /// la recursión en los hijos, excepto para widgets "hoja" cuya
   /// información interna ya fue capturada (TextField, EditableText).
-  static void _walk(Element element, int depth, List<Map<String, dynamic>> result) {
+  static void _walk(
+    Element element,
+    int depth,
+    List<Map<String, dynamic>> result,
+  ) {
     final widget = element.widget;
 
     // Extraer datos si es un widget con información relevante
@@ -117,8 +121,8 @@ class McpTreeInspector {
     final mcpKey = widget.key is McpMetadataKey
         ? (widget.key as McpMetadataKey).id
         : widget.key is ValueKey<String>
-            ? (widget.key as ValueKey<String>).value
-            : null;
+        ? (widget.key as ValueKey<String>).value
+        : null;
 
     // ── Texto ──────────────────────────────────────────────────────────────
     if (widget is Text) {
@@ -139,11 +143,17 @@ class McpTreeInspector {
       final value = _findEditableTextValue(element);
       final hint = widget.decoration?.hintText;
       final enabled = widget.enabled ?? true;
-      return _entry('TextField', depth, pos, mcpKey, extra: {
-        if (value != null && value.isNotEmpty) 'value': value,
-        if (hint != null) 'hint': hint,
-        'enabled': enabled,
-      });
+      return _entry(
+        'TextField',
+        depth,
+        pos,
+        mcpKey,
+        extra: {
+          if (value != null && value.isNotEmpty) 'value': value,
+          if (hint != null) 'hint': hint,
+          'enabled': enabled,
+        },
+      );
     }
 
     // TextFormField: decoration is not directly accessible as a widget field
@@ -153,105 +163,153 @@ class McpTreeInspector {
     if (widget is TextFormField) {
       if (mcpKey == null) return null; // no extra info vs inner TextField
       final value = _findEditableTextValue(element);
-      return _entry('TextFormField', depth, pos, mcpKey, extra: {
-        if (value != null && value.isNotEmpty) 'value': value,
-      });
+      return _entry(
+        'TextFormField',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (value != null && value.isNotEmpty) 'value': value},
+      );
     }
 
     // ── Botones ────────────────────────────────────────────────────────────
     if (widget is ElevatedButton) {
       final label = _findTextInSubtree(element);
       final enabled = widget.onPressed != null;
-      return _entry('ElevatedButton', depth, pos, mcpKey, extra: {
-        if (label != null) 'label': label,
-        'enabled': enabled,
-      });
+      return _entry(
+        'ElevatedButton',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (label != null) 'label': label, 'enabled': enabled},
+      );
     }
 
     if (widget is TextButton) {
       final label = _findTextInSubtree(element);
       final enabled = widget.onPressed != null;
-      return _entry('TextButton', depth, pos, mcpKey, extra: {
-        if (label != null) 'label': label,
-        'enabled': enabled,
-      });
+      return _entry(
+        'TextButton',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (label != null) 'label': label, 'enabled': enabled},
+      );
     }
 
     if (widget is OutlinedButton) {
       final label = _findTextInSubtree(element);
       final enabled = widget.onPressed != null;
-      return _entry('OutlinedButton', depth, pos, mcpKey, extra: {
-        if (label != null) 'label': label,
-        'enabled': enabled,
-      });
+      return _entry(
+        'OutlinedButton',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (label != null) 'label': label, 'enabled': enabled},
+      );
     }
 
     if (widget is FilledButton) {
       final label = _findTextInSubtree(element);
       final enabled = widget.onPressed != null;
-      return _entry('FilledButton', depth, pos, mcpKey, extra: {
-        if (label != null) 'label': label,
-        'enabled': enabled,
-      });
+      return _entry(
+        'FilledButton',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (label != null) 'label': label, 'enabled': enabled},
+      );
     }
 
     if (widget is IconButton) {
       final tooltip = widget.tooltip;
       final enabled = widget.onPressed != null;
-      return _entry('IconButton', depth, pos, mcpKey, extra: {
-        if (tooltip != null) 'tooltip': tooltip,
-        'enabled': enabled,
-      });
+      return _entry(
+        'IconButton',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (tooltip != null) 'tooltip': tooltip, 'enabled': enabled},
+      );
     }
 
     // ── Controles de selección ─────────────────────────────────────────────
     if (widget is Checkbox) {
-      return _entry('Checkbox', depth, pos, mcpKey, extra: {
-        'value': widget.value,
-        'enabled': widget.onChanged != null,
-      });
+      return _entry(
+        'Checkbox',
+        depth,
+        pos,
+        mcpKey,
+        extra: {'value': widget.value, 'enabled': widget.onChanged != null},
+      );
     }
 
     if (widget is Switch) {
-      return _entry('Switch', depth, pos, mcpKey, extra: {
-        'value': widget.value,
-        'enabled': widget.onChanged != null,
-      });
+      return _entry(
+        'Switch',
+        depth,
+        pos,
+        mcpKey,
+        extra: {'value': widget.value, 'enabled': widget.onChanged != null},
+      );
     }
 
     if (widget is Radio) {
-      return _entry('Radio', depth, pos, mcpKey, extra: {
-        'value': widget.value?.toString(),
-        'groupValue': widget.groupValue?.toString(),
-        'selected': widget.value == widget.groupValue,
-        'enabled': widget.onChanged != null,
-      });
+      return _entry(
+        'Radio',
+        depth,
+        pos,
+        mcpKey,
+        extra: {
+          'value': widget.value?.toString(),
+          'groupValue': widget.groupValue?.toString(),
+          'selected': widget.value == widget.groupValue,
+          'enabled': widget.onChanged != null,
+        },
+      );
     }
 
     // ── Slider ─────────────────────────────────────────────────────────────
     if (widget is Slider) {
-      return _entry('Slider', depth, pos, mcpKey, extra: {
-        'value': widget.value,
-        'min': widget.min,
-        'max': widget.max,
-        'enabled': widget.onChanged != null,
-      });
+      return _entry(
+        'Slider',
+        depth,
+        pos,
+        mcpKey,
+        extra: {
+          'value': widget.value,
+          'min': widget.min,
+          'max': widget.max,
+          'enabled': widget.onChanged != null,
+        },
+      );
     }
 
     // ── Dropdown ───────────────────────────────────────────────────────────
     if (widget is DropdownButtonFormField) {
-      return _entry('DropdownButtonFormField', depth, pos, mcpKey, extra: {
-        if (widget.initialValue != null) 'value': widget.initialValue.toString(),
-      });
+      return _entry(
+        'DropdownButtonFormField',
+        depth,
+        pos,
+        mcpKey,
+        extra: {
+          if (widget.initialValue != null)
+            'value': widget.initialValue.toString(),
+        },
+      );
     }
 
     // ── Imagen ─────────────────────────────────────────────────────────────
     if (widget is Image) {
       final label = widget.semanticLabel;
       if (label == null && mcpKey == null) return null; // no info útil
-      return _entry('Image', depth, pos, mcpKey, extra: {
-        if (label != null) 'semanticLabel': label,
-      });
+      return _entry(
+        'Image',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (label != null) 'semanticLabel': label},
+      );
     }
 
     // ── AppBar ─────────────────────────────────────────────────────────────
@@ -259,9 +317,13 @@ class McpTreeInspector {
       final titleText = widget.title is Text
           ? (widget.title as Text).data
           : _findTextInSubtree(element);
-      return _entry('AppBar', depth, pos, mcpKey, extra: {
-        if (titleText != null) 'title': titleText,
-      });
+      return _entry(
+        'AppBar',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (titleText != null) 'title': titleText},
+      );
     }
 
     // ── Diálogos / overlays ────────────────────────────────────────────────
@@ -269,20 +331,26 @@ class McpTreeInspector {
       final titleText = widget.title is Text
           ? (widget.title as Text).data
           : null;
-      return _entry('AlertDialog', depth, pos, mcpKey, extra: {
-        if (titleText != null) 'title': titleText,
-        'visible': true,
-      });
+      return _entry(
+        'AlertDialog',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (titleText != null) 'title': titleText, 'visible': true},
+      );
     }
 
     if (widget is SnackBar) {
       final content = widget.content is Text
           ? (widget.content as Text).data
           : _findTextInSubtree(element);
-      return _entry('SnackBar', depth, pos, mcpKey, extra: {
-        if (content != null) 'content': content,
-        'visible': true,
-      });
+      return _entry(
+        'SnackBar',
+        depth,
+        pos,
+        mcpKey,
+        extra: {if (content != null) 'content': content, 'visible': true},
+      );
     }
 
     return null;
@@ -338,6 +406,7 @@ class McpTreeInspector {
       }
       el.visitChildElements(visit);
     }
+
     element.visitChildElements(visit);
     return found;
   }
@@ -354,6 +423,7 @@ class McpTreeInspector {
       }
       el.visitChildElements(visit);
     }
+
     element.visitChildElements(visit);
     return found;
   }

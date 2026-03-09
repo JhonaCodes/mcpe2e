@@ -52,7 +52,13 @@ class McpMetadataKey extends Key {
   List<String> get capabilities {
     switch (widgetType) {
       case McpWidgetType.button:
-        return ['tap', 'long_press', 'double_tap', 'assert_exists', 'assert_text'];
+        return [
+          'tap',
+          'long_press',
+          'double_tap',
+          'assert_exists',
+          'assert_text',
+        ];
       case McpWidgetType.textField:
         return ['tap', 'text_input', 'clear', 'assert_exists', 'assert_text'];
       case McpWidgetType.text:
@@ -87,7 +93,8 @@ class McpMetadataKey extends Key {
       'type': _getFlutterWidgetType(),
       if (description != null) 'label': description,
       if (description != null) 'description': description,
-      if (customMetadata?['purpose'] != null) 'purpose': customMetadata!['purpose'],
+      if (customMetadata?['purpose'] != null)
+        'purpose': customMetadata!['purpose'],
       'capabilities': capabilities,
       if (screen != null) 'screen': screen,
       if (tags != null && tags!.isNotEmpty) 'tags': tags,

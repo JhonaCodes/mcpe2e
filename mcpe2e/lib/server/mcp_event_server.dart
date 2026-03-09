@@ -73,7 +73,9 @@ class McpEventServer {
     // En release, los mecanismos de inspección (debugLayer, visitChildElements
     // para debug info) no están disponibles o retornan datos incompletos.
     if (!kDebugMode && !kProfileMode) {
-      Log.i('[Server] ⚠️  McpEventServer no debe correr en producción. Abortando.');
+      Log.i(
+        '[Server] ⚠️  McpEventServer no debe correr en producción. Abortando.',
+      );
       return;
     }
 
@@ -98,9 +100,12 @@ class McpEventServer {
 
       _logStartup(connectivity);
 
-      _server!.listen(_handleRequest, onError: (e) {
-        Log.i('[Server] Error: $e');
-      });
+      _server!.listen(
+        _handleRequest,
+        onError: (e) {
+          Log.i('[Server] Error: $e');
+        },
+      );
     } catch (e) {
       Log.i('[Server] ❌ No se pudo iniciar: $e');
       _isRunning = false;
@@ -124,14 +129,22 @@ class McpEventServer {
     Log.i('[Server] ${request.method} ${request.uri.path}');
     try {
       switch (request.uri.path) {
-        case '/ping':           _handlePing(request);
-        case '/mcp/context':    _handleMcpContext(request);
-        case '/mcp/tree':       _handleTree(request);
-        case '/mcp/screenshot': await _handleScreenshot(request);
-        case '/action':         await _handleAction(request);
-        case '/event':          await _handleEvent(request);
-        case '/widgets':        _handleWidgets(request);
-        default:                _send(request, 404, 'text/plain', 'Endpoint no encontrado');
+        case '/ping':
+          _handlePing(request);
+        case '/mcp/context':
+          _handleMcpContext(request);
+        case '/mcp/tree':
+          _handleTree(request);
+        case '/mcp/screenshot':
+          await _handleScreenshot(request);
+        case '/action':
+          await _handleAction(request);
+        case '/event':
+          await _handleEvent(request);
+        case '/widgets':
+          _handleWidgets(request);
+        default:
+          _send(request, 404, 'text/plain', 'Endpoint no encontrado');
       }
     } catch (e) {
       Log.i('[Server] Error procesando request: $e');
@@ -261,8 +274,12 @@ class McpEventServer {
       params: eventParams,
     );
 
-    _send(req, 200, 'text/plain',
-        success ? 'OK: $typeStr en "$key"' : 'Error: $typeStr en "$key" falló');
+    _send(
+      req,
+      200,
+      'text/plain',
+      success ? 'OK: $typeStr en "$key"' : 'Error: $typeStr en "$key" falló',
+    );
   }
 
   /// POST /event — Ejecuta evento con JSON body.
@@ -312,7 +329,11 @@ class McpEventServer {
       params: params,
     );
 
-    _sendJson(req, {'success': success, 'widgetKey': key, 'eventType': typeStr});
+    _sendJson(req, {
+      'success': success,
+      'widgetKey': key,
+      'eventType': typeStr,
+    });
   }
 
   /// GET /widgets — Lista los widgets registrados.
@@ -335,54 +356,65 @@ class McpEventServer {
   /// Acepta camelCase y snake_case indistintamente.
   static McpEventType? _parseEventType(String type) {
     return switch (type.toLowerCase()) {
-      'tap'                              => McpEventType.tap,
-      'doubletap' || 'double_tap'        => McpEventType.doubleTap,
-      'longpress' || 'long_press'        => McpEventType.longPress,
-      'swipe'                            => McpEventType.swipe,
-      'drag'                             => McpEventType.drag,
-      'scroll'                           => McpEventType.scroll,
-      'pinch'                            => McpEventType.pinch,
-      'textinput' || 'text_input'        => McpEventType.textInput,
-      'cleartext' || 'clear_text'        => McpEventType.clearText,
+      'tap' => McpEventType.tap,
+      'doubletap' || 'double_tap' => McpEventType.doubleTap,
+      'longpress' || 'long_press' => McpEventType.longPress,
+      'swipe' => McpEventType.swipe,
+      'drag' => McpEventType.drag,
+      'scroll' => McpEventType.scroll,
+      'pinch' => McpEventType.pinch,
+      'textinput' || 'text_input' => McpEventType.textInput,
+      'cleartext' || 'clear_text' => McpEventType.clearText,
       'selectdropdown' || 'select_dropdown' => McpEventType.selectDropdown,
-      'toggle'                           => McpEventType.toggle,
+      'toggle' => McpEventType.toggle,
       'setslidervalue' || 'set_slider_value' => McpEventType.setSliderValue,
-      'hidekeyboard' || 'hide_keyboard'  => McpEventType.hideKeyboard,
-      'showkeyboard' || 'show_keyboard'  => McpEventType.showKeyboard,
-      'pressback' || 'press_back'        => McpEventType.pressBack,
-      'scrolluntilvisible' || 'scroll_until_visible' => McpEventType.scrollUntilVisible,
-      'tapbylabel' || 'tap_by_label'     => McpEventType.tapByLabel,
-      'wait'                             => McpEventType.wait,
-      'assertexists' || 'assert_exists'  => McpEventType.assertExists,
-      'asserttext' || 'assert_text'      => McpEventType.assertText,
+      'hidekeyboard' || 'hide_keyboard' => McpEventType.hideKeyboard,
+      'showkeyboard' || 'show_keyboard' => McpEventType.showKeyboard,
+      'pressback' || 'press_back' => McpEventType.pressBack,
+      'scrolluntilvisible' ||
+      'scroll_until_visible' => McpEventType.scrollUntilVisible,
+      'tapbylabel' || 'tap_by_label' => McpEventType.tapByLabel,
+      'wait' => McpEventType.wait,
+      'assertexists' || 'assert_exists' => McpEventType.assertExists,
+      'asserttext' || 'assert_text' => McpEventType.assertText,
       'assertvisible' || 'assert_visible' => McpEventType.assertVisible,
       'assertenabled' || 'assert_enabled' => McpEventType.assertEnabled,
       'assertselected' || 'assert_selected' => McpEventType.assertSelected,
-      'assertvalue' || 'assert_value'    => McpEventType.assertValue,
-      'assertcount' || 'assert_count'    => McpEventType.assertCount,
-      _                                  => null,
+      'assertvalue' || 'assert_value' => McpEventType.assertValue,
+      'assertcount' || 'assert_count' => McpEventType.assertCount,
+      _ => null,
     };
   }
 
   /// Convierte los query parameters de URL a [McpEventParams].
   static McpEventParams _parseUrlParams(Map<String, String> p) {
     return McpEventParams(
-      text:             p['text'],
-      duration:         p['duration']    != null ? Duration(milliseconds: int.parse(p['duration']!)) : null,
-      distance:         p['distance']    != null ? double.parse(p['distance']!) : null,
-      direction:        p['direction'],
-      deltaX:           p['deltaX']      != null ? double.parse(p['deltaX']!) : null,
-      deltaY:           p['deltaY']      != null ? double.parse(p['deltaY']!) : null,
-      clearFirst:       p['clearFirst'] == 'true',
-      expectedText:     p['expectedText'],
-      scale:            p['scale']       != null ? double.parse(p['scale']!) : null,
-      dropdownValue:    p['dropdownValue'],
-      dropdownIndex:    p['dropdownIndex']    != null ? int.parse(p['dropdownIndex']!) : null,
-      sliderValue:      p['sliderValue']      != null ? double.parse(p['sliderValue']!) : null,
-      targetKey:        p['targetKey'],
-      maxScrollAttempts: p['maxScrollAttempts'] != null ? int.parse(p['maxScrollAttempts']!) : null,
-      label:            p['label'],
-      expectedCount:    p['expectedCount']    != null ? int.parse(p['expectedCount']!) : null,
+      text: p['text'],
+      duration: p['duration'] != null
+          ? Duration(milliseconds: int.parse(p['duration']!))
+          : null,
+      distance: p['distance'] != null ? double.parse(p['distance']!) : null,
+      direction: p['direction'],
+      deltaX: p['deltaX'] != null ? double.parse(p['deltaX']!) : null,
+      deltaY: p['deltaY'] != null ? double.parse(p['deltaY']!) : null,
+      clearFirst: p['clearFirst'] == 'true',
+      expectedText: p['expectedText'],
+      scale: p['scale'] != null ? double.parse(p['scale']!) : null,
+      dropdownValue: p['dropdownValue'],
+      dropdownIndex: p['dropdownIndex'] != null
+          ? int.parse(p['dropdownIndex']!)
+          : null,
+      sliderValue: p['sliderValue'] != null
+          ? double.parse(p['sliderValue']!)
+          : null,
+      targetKey: p['targetKey'],
+      maxScrollAttempts: p['maxScrollAttempts'] != null
+          ? int.parse(p['maxScrollAttempts']!)
+          : null,
+      label: p['label'],
+      expectedCount: p['expectedCount'] != null
+          ? int.parse(p['expectedCount']!)
+          : null,
     );
   }
 
@@ -392,7 +424,12 @@ class McpEventServer {
     _send(req, 200, 'application/json', jsonEncode(body));
   }
 
-  static void _send(HttpRequest req, int status, String contentType, String body) {
+  static void _send(
+    HttpRequest req,
+    int status,
+    String contentType,
+    String body,
+  ) {
     req.response
       ..statusCode = status
       ..headers.contentType = ContentType.parse(contentType)
@@ -408,7 +445,9 @@ class McpEventServer {
     Log.d('║           mcpe2e HTTP Server iniciado            ║');
     Log.d('╠══════════════════════════════════════════════════╣');
     Log.d('║ Plataforma : ${info.platform.padRight(35)}║');
-    Log.d('║ App URL    : http://$host:$port${' ' * (27 - '$host:$port'.length)}║');
+    Log.d(
+      '║ App URL    : http://$host:$port${' ' * (27 - '$host:$port'.length)}║',
+    );
     Log.d('╠══════════════════════════════════════════════════╣');
     Log.d('║ Endpoints disponibles:                           ║');
     Log.d('║   GET  /ping                                     ║');
@@ -424,7 +463,9 @@ class McpEventServer {
       Log.d('║   ${info.connectCommand.padRight(48)}║');
     }
     Log.d('║ Luego inicia mcpe2e_server con:                  ║');
-    Log.d('║   TESTBRIDGE_URL=${info.mcpServerUrl}${' ' * (32 - info.mcpServerUrl.length)}║');
+    Log.d(
+      '║   TESTBRIDGE_URL=${info.mcpServerUrl}${' ' * (32 - info.mcpServerUrl.length)}║',
+    );
     Log.d('╚══════════════════════════════════════════════════╝');
     Log.d('');
   }

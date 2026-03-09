@@ -58,9 +58,15 @@ class McpGestureSimulator {
   /// GestureDetector con onTap / onPressed que contengan esa posición.
   void simulateTap(Offset position) {
     final pointer = _nextPointer;
-    Log.i('[Gesture] 👆 TAP en (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)})');
-    GestureBinding.instance.handlePointerEvent(PointerDownEvent(position: position, pointer: pointer));
-    GestureBinding.instance.handlePointerEvent(PointerUpEvent(position: position, pointer: pointer));
+    Log.i(
+      '[Gesture] 👆 TAP en (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)})',
+    );
+    GestureBinding.instance.handlePointerEvent(
+      PointerDownEvent(position: position, pointer: pointer),
+    );
+    GestureBinding.instance.handlePointerEvent(
+      PointerUpEvent(position: position, pointer: pointer),
+    );
   }
 
   /// Simula un swipe (deslizamiento) desde [start] hasta [end] en [duration].
@@ -77,20 +83,28 @@ class McpGestureSimulator {
     final stepMs = duration.inMilliseconds ~/ steps;
     final pointer = _nextPointer;
 
-    Log.i('[Gesture] 👉 SWIPE de $start a $end (${duration.inMilliseconds}ms, $steps pasos)');
+    Log.i(
+      '[Gesture] 👉 SWIPE de $start a $end (${duration.inMilliseconds}ms, $steps pasos)',
+    );
 
-    GestureBinding.instance.handlePointerEvent(PointerDownEvent(position: start, pointer: pointer));
+    GestureBinding.instance.handlePointerEvent(
+      PointerDownEvent(position: start, pointer: pointer),
+    );
 
     for (int i = 1; i <= steps; i++) {
       final t = i / steps;
       final pos = Offset.lerp(start, end, t)!;
       Future.delayed(Duration(milliseconds: stepMs * i), () {
-        GestureBinding.instance.handlePointerEvent(PointerMoveEvent(position: pos, pointer: pointer));
+        GestureBinding.instance.handlePointerEvent(
+          PointerMoveEvent(position: pos, pointer: pointer),
+        );
       });
     }
 
     Future.delayed(duration, () {
-      GestureBinding.instance.handlePointerEvent(PointerUpEvent(position: end, pointer: pointer));
+      GestureBinding.instance.handlePointerEvent(
+        PointerUpEvent(position: end, pointer: pointer),
+      );
     });
   }
 
@@ -101,7 +115,10 @@ class McpGestureSimulator {
   void simulateScroll(Offset position, {double deltaX = 0, double deltaY = 0}) {
     Log.i('[Gesture] 📜 SCROLL en $position (dx=$deltaX, dy=$deltaY)');
     GestureBinding.instance.handlePointerEvent(
-      PointerScrollEvent(position: position, scrollDelta: Offset(deltaX, deltaY)),
+      PointerScrollEvent(
+        position: position,
+        scrollDelta: Offset(deltaX, deltaY),
+      ),
     );
   }
 }

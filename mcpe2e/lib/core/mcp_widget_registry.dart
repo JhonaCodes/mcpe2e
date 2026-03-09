@@ -114,7 +114,8 @@ class McpWidgetRegistry {
       _widgets.values.map((e) => e.metadata).toList();
 
   /// Retorna los entries del registro para iteración en el executor.
-  Iterable<MapEntry<String, ({McpMetadataKey metadata, GlobalKey globalKey})>> get entries => _widgets.entries;
+  Iterable<MapEntry<String, ({McpMetadataKey metadata, GlobalKey globalKey})>>
+  get entries => _widgets.entries;
 
   // ── Serialización ────────────────────────────────────────────────────────
 

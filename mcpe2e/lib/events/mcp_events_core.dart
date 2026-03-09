@@ -69,7 +69,7 @@ class McpEvents {
 
   // ── Componentes internos ──────────────────────────────────────────────────
 
-  final _registry  = McpWidgetRegistry.instance;
+  final _registry = McpWidgetRegistry.instance;
   final _simulator = McpGestureSimulator.instance;
   late final _executor = McpEventExecutor(_registry, _simulator);
 
@@ -99,7 +99,8 @@ class McpEvents {
   BuildContext? getContext(String id) => _registry.getContext(id);
 
   /// Retorna la metadata registrada para un widget.
-  McpMetadataKey? getWidgetMetadata(String id) => _registry.getWidgetMetadata(id);
+  McpMetadataKey? getWidgetMetadata(String id) =>
+      _registry.getWidgetMetadata(id);
 
   // ── Consultas ─────────────────────────────────────────────────────────────
 
@@ -130,10 +131,9 @@ class McpEvents {
     required String widgetKey,
     required McpEventType eventType,
     McpEventParams? params,
-  }) =>
-      _executor.executeEvent(
-        widgetKey: widgetKey,
-        eventType: eventType,
-        params: params,
-      );
+  }) => _executor.executeEvent(
+    widgetKey: widgetKey,
+    eventType: eventType,
+    params: params,
+  );
 }

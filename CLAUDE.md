@@ -1,8 +1,8 @@
-# E2E MCP — AI-driven Flutter E2E Testing
+# mcpe2e — AI-driven Flutter E2E Testing
 
-Claude controla una app Flutter real en un dispositivo: toca, escribe, scrollea, verifica — usando MCP tools.
+Claude controls a real Flutter app on a device: tap, type, scroll, assert — using MCP tools.
 
-## Arquitectura
+## Architecture
 
 ```
 Claude Code / Claude Desktop
@@ -11,47 +11,47 @@ Claude Code / Claude Desktop
     ▼
 ┌─────────────────────────────────┐
 │  mcpe2e_server  (Dart)          │  MCP Server — 27 tools
-│  Traduce MCP tools → HTTP       │  Binario: bin/server.dart
-│  Habla con la app via HTTP      │  TESTBRIDGE_URL=http://localhost:7778
+│  Translates MCP tools → HTTP    │  Binary: bin/server.dart
+│  Connects to the app via HTTP   │  TESTBRIDGE_URL=http://localhost:7778
 └────────────────┬────────────────┘
                  │  HTTP REST
                  │  localhost:7778 → (forwarding) → device:7777
                  ▼
 ┌─────────────────────────────────┐
-│  mcpe2e  (Dart / Flutter lib)   │  Corre DENTRO de la app Flutter
-│  Servidor HTTP en :7777         │  Ejecuta gestos reales en el árbol
-│  25 tipos de evento             │  de widgets del dispositivo
-│  Inspección del UI sin intrusión│
+│  mcpe2e  (Dart / Flutter lib)   │  Runs INSIDE the Flutter app
+│  HTTP server on :7777           │  Executes real gestures on the
+│  25 event types                 │  live widget tree on the device
+│  Zero-intrusion UI inspection   │
 └─────────────────────────────────┘
 ```
 
-## Dos componentes independientes
+## Two independent components
 
-| Componente | Qué es | Protocolo | Ubicación |
-|------------|--------|-----------|-----------|
-| **mcpe2e** | Flutter library — HTTP server embebido en la app | HTTP (recibe) | `./mcpe2e/` |
-| **mcpe2e_server** | MCP server — traduce tools MCP a llamadas HTTP | MCP stdio + HTTP (envía) | `./mcpe2e_server/` |
+| Component | What it is | Protocol | Location |
+|-----------|------------|----------|----------|
+| **mcpe2e** | Flutter library — HTTP server embedded in the app | HTTP (receives commands) | `./mcpe2e/` |
+| **mcpe2e_server** | MCP server — translates MCP tools to HTTP calls | MCP stdio + HTTP (sends commands) | `./mcpe2e_server/` |
 
-> `mcpe2e` **no es** un MCP server. Es un servidor HTTP que corre dentro del dispositivo y ejecuta gestos reales sobre los widgets de la app.
+> `mcpe2e` is **not** an MCP server. It is an HTTP server that runs inside the device and executes real gestures on the app's widget tree.
 
 ## Quick Start
 
-### 1. Agregar mcpe2e a tu app Flutter
+### 1. Add mcpe2e to your Flutter app
 
 ```yaml
 # pubspec.yaml (dev_dependencies)
 dev_dependencies:
   mcpe2e:
-    path: /ruta/a/mcpe2e
+    path: /path/to/mcpe2e
 ```
 
-### 2. Registrar widgets e iniciar el servidor
+### 2. Register widgets and start the server
 
 ```dart
 import 'package:mcpe2e/mcpe2e.dart';
 import 'package:flutter/foundation.dart';
 
-// Definir keys (McpMetadataKey extiende Key — úsala directamente en el widget)
+// McpMetadataKey extends Key — use it directly on the widget
 const loginEmail = McpMetadataKey(
   id: 'auth.email_field',
   widgetType: McpWidgetType.textField,
@@ -66,159 +66,154 @@ const loginButton = McpMetadataKey(
   screen: 'LoginScreen',
 );
 
-// Registrar y arrancar (solo en debug/profile)
 void initE2E() {
   if (!kDebugMode && !kProfileMode) return;
   McpEvents.instance.registerWidget(loginEmail);
   McpEvents.instance.registerWidget(loginButton);
-  McpEventServer.start(); // escucha en :7777
+  McpEventServer.start(); // listens on :7777
 }
 
-// Usar la key directamente en el widget
+// Use the key directly on the widget
 ElevatedButton(
-  key: loginButton,          // McpMetadataKey extends Key
+  key: loginButton,
   onPressed: _handleLogin,
   child: const Text('Login'),
 )
-
-TextField(
-  key: loginEmail,
-  controller: _emailController,
-)
 ```
 
-### 3. Conectar el dispositivo
+### 3. Connect the device
 
 ```bash
 # Android: ADB forward
 adb forward tcp:7778 tcp:7777
 
-# Verificar
+# Verify
 curl http://localhost:7778/ping
 # → {"status":"ok","port":7777}
 ```
 
-### 4. Iniciar mcpe2e_server y registrarlo en Claude
+### 4. Start mcpe2e_server and register with Claude
 
 ```bash
 cd mcpe2e_server
 dart compile exe bin/server.dart -o mcpe2e
 
-# Registrar con Claude Code
+# Register with Claude Code
 claude mcp add mcpe2e \
-  --command /ruta/a/mcpe2e_server/mcpe2e \
+  --command /path/to/mcpe2e_server/mcpe2e \
   --env TESTBRIDGE_URL=http://localhost:7778
 ```
 
-### 5. Usar desde Claude
+### 5. Use from Claude
 
-Claude puede llamar MCP tools directamente:
-- `get_app_context` → ver widgets registrados en pantalla
-- `inspect_ui` → ver TODOS los widgets con valores (sin registro previo)
-- `capture_screenshot` → ver la pantalla como imagen
-- `tap_widget key=auth.login_button` → tap real en el botón
-- `input_text key=auth.email_field text=user@test.com` → escribir en el campo
-- `assert_text key=auth.error text="Email inválido"` → verificar texto
+```
+get_app_context          → see registered widgets on screen
+inspect_ui               → see ALL widgets with values (no registration needed)
+capture_screenshot       → view the screen as an image
+tap_widget               → real tap on a widget
+input_text               → type in a text field
+assert_text              → verify visible text
+```
 
-## Conectividad por plataforma
+## Platform connectivity
 
-| Plataforma | Mecanismo | Comando |
-|------------|-----------|---------|
+| Platform | Mechanism | Command |
+|----------|-----------|---------|
 | Android | ADB forward | `adb forward tcp:7778 tcp:7777` |
 | iOS | iproxy | `iproxy 7778 7777` |
-| Desktop (macOS/Linux/Win) | Directo | sin forwarding — `TESTBRIDGE_URL=http://localhost:7777` |
-| Web | No soportado | Flutter Web no puede abrir sockets TCP |
+| Desktop (macOS/Linux/Win) | Direct localhost | No setup — use `TESTBRIDGE_URL=http://localhost:7777` |
+| Web | Not supported | Flutter Web cannot open TCP sockets |
 
-> `McpConnectivity.setup()` configura el forwarding automáticamente al iniciar `McpEventServer.start()`.
+`McpConnectivity.setup()` configures forwarding automatically when `McpEventServer.start()` is called.
 
 ## MCP Tools (27 total)
 
-### Contexto e inspección
+### Context & inspection
 
-| Tool | Descripción | HTTP |
+| Tool | Description | HTTP |
 |------|-------------|------|
-| `get_app_context` | Widgets registrados con metadata y capabilities | `GET /mcp/context` |
-| `list_test_cases` | Alias de get_app_context | `GET /mcp/context` |
-| `inspect_ui` | Árbol completo de widgets con valores/estados (sin registro) | `GET /mcp/tree` |
-| `capture_screenshot` | Pantalla actual como imagen PNG (debug/profile only) | `GET /mcp/screenshot` |
+| `get_app_context` | Registered widgets with metadata and capabilities | `GET /mcp/context` |
+| `list_test_cases` | Alias for get_app_context | `GET /mcp/context` |
+| `inspect_ui` | Full widget tree with values/states (no registration needed) | `GET /mcp/tree` |
+| `capture_screenshot` | Current screen as PNG image (debug/profile only) | `GET /mcp/screenshot` |
 
-### Gestos
+### Gestures
 
-| Tool | Descripción |
+| Tool | Description |
 |------|-------------|
-| `tap_widget` | Tap simple |
-| `double_tap_widget` | Doble tap |
-| `long_press_widget` | Tap sostenido |
-| `swipe_widget` | Deslizamiento (up/down/left/right) |
-| `scroll_widget` | Scroll en lista |
-| `scroll_until_visible` | Scroll hasta que un widget sea visible |
-| `tap_by_label` | Tap buscando por texto visible |
+| `tap_widget` | Single tap |
+| `double_tap_widget` | Double tap |
+| `long_press_widget` | Long press |
+| `swipe_widget` | Swipe (up/down/left/right) |
+| `scroll_widget` | Scroll a list |
+| `scroll_until_visible` | Scroll until a widget is visible |
+| `tap_by_label` | Tap by visible text label |
 
 ### Input
 
-| Tool | Descripción |
+| Tool | Description |
 |------|-------------|
-| `input_text` | Escribir en TextField |
-| `clear_text` | Limpiar TextField |
-| `select_dropdown` | Seleccionar opción de DropdownButtonFormField |
-| `toggle_widget` | Checkbox / Switch / Radio |
-| `set_slider_value` | Posicionar Slider (0.0–1.0) |
+| `input_text` | Type into a TextField |
+| `clear_text` | Clear a TextField |
+| `select_dropdown` | Select a DropdownButtonFormField option |
+| `toggle_widget` | Toggle Checkbox / Switch / Radio |
+| `set_slider_value` | Set Slider position (0.0–1.0) |
 
-### Teclado y navegación
+### Keyboard & navigation
 
-| Tool | Descripción |
+| Tool | Description |
 |------|-------------|
-| `hide_keyboard` | Cerrar teclado virtual |
-| `press_back` | Navegar atrás |
-| `wait` | Pausa (útil post-animación) |
+| `hide_keyboard` | Dismiss the virtual keyboard |
+| `press_back` | Navigate back |
+| `wait` | Pause execution (useful after animations) |
 
-### Aserciones
+### Assertions
 
-| Tool | Descripción |
+| Tool | Description |
 |------|-------------|
-| `assert_exists` | Widget registrado existe |
-| `assert_text` | Texto visible coincide |
-| `assert_visible` | Widget visible en viewport |
-| `assert_enabled` | Widget habilitado |
-| `assert_selected` | Checkbox/Switch/Radio activo |
-| `assert_value` | Valor del controller de un TextField |
-| `assert_count` | Cantidad de hijos de Column/Row/ListView |
+| `assert_exists` | Widget is registered |
+| `assert_text` | Visible text matches |
+| `assert_visible` | Widget is visible in viewport |
+| `assert_enabled` | Widget is enabled |
+| `assert_selected` | Checkbox/Switch/Radio is active |
+| `assert_value` | TextField controller value matches |
+| `assert_count` | Column/Row/ListView has exactly N children |
 
-## Convención de IDs
+## Widget ID convention
 
 ```
-module.elemento[.variante]
+module.element[.variant]
 
-auth.login_button           Botón de login
-auth.email_field            Campo email
-order.form.price            Campo precio en formulario
-order.card.{uuid}           Card dinámico con ID
-state.loading_indicator     Indicador de carga
-screen.dashboard            Identificador de pantalla
-modal.confirm.delete        Modal/diálogo
+auth.login_button           Login button
+auth.email_field            Email input
+order.form.price            Price field inside a form
+order.card.{uuid}           Dynamic card with runtime ID
+state.loading_indicator     Loading state indicator
+screen.dashboard            Screen identifier
+modal.confirm.delete        Modal / dialog
 ```
 
-## Endpoints HTTP (mcpe2e Flutter lib)
+## HTTP Endpoints (mcpe2e Flutter library)
 
-| Endpoint | Método | Descripción |
+| Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/ping` | GET | Health check — `{"status":"ok","port":7777}` |
-| `/mcp/context` | GET | Widgets registrados con metadata |
-| `/mcp/tree` | GET | Árbol completo (sin registro) |
-| `/mcp/screenshot` | GET | Pantalla como PNG base64 |
-| `/action?key=...&type=...` | GET | Ejecutar evento con query params |
-| `/event` | POST | Ejecutar evento con JSON body |
-| `/widgets` | GET | Lista de IDs (`?metadata=true` para full) |
+| `/mcp/context` | GET | Registered widgets with metadata |
+| `/mcp/tree` | GET | Full widget tree (no registration needed) |
+| `/mcp/screenshot` | GET | Screen as PNG base64 |
+| `/action?key=...&type=...` | GET | Execute event via query params |
+| `/event` | POST | Execute event via JSON body |
+| `/widgets` | GET | List widget IDs (`?metadata=true` for full context) |
 
-## Seguridad en producción
+## Production safety
 
-- `McpEventServer.start()` retorna inmediatamente si no estamos en debug/profile
-- `capture_screenshot` retorna `{"error":"not_available_in_release"}` en release
-- El servidor nunca inicia a menos que se llame explícitamente a `start()`
+- `McpEventServer.start()` returns immediately if not in debug/profile mode
+- `capture_screenshot` returns `{"error":"not_available_in_release"}` in release builds
+- The server never starts unless explicitly called with `start()`
 
-## Documentación detallada
+## Documentation
 
-- `docs/integration-guide.md` — Integración paso a paso en cualquier app Flutter
-- `docs/test-flow-example.md` — Walkthrough completo de un test con Claude
-- `mcpe2e/README.md` — API reference de la Flutter library
-- `mcpe2e_server/` — MCP server (ver pubspec.yaml y bin/server.dart)
+- `docs/integration-guide.md` — Step-by-step integration for any Flutter app
+- `docs/test-flow-example.md` — Complete test walkthrough with Claude
+- `mcpe2e/README.md` — Flutter library API reference
+- `mcpe2e_server/` — MCP server (see `pubspec.yaml` and `bin/server.dart`)

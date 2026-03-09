@@ -101,15 +101,28 @@ class McpConnectivity {
   ///
   /// Requiere que el dispositivo esté conectado por USB con depuración USB
   /// activada y que `adb` esté en el PATH del sistema.
-  static Future<McpConnectivityInfo> _setupAndroid(int appPort, int fwPort) async {
-    Log.i('[Connectivity] 📱 Android: intentando ADB forward tcp:$fwPort → tcp:$appPort');
+  static Future<McpConnectivityInfo> _setupAndroid(
+    int appPort,
+    int fwPort,
+  ) async {
+    Log.i(
+      '[Connectivity] 📱 Android: intentando ADB forward tcp:$fwPort → tcp:$appPort',
+    );
 
     try {
-      final result = await Process.run('adb', ['forward', 'tcp:$fwPort', 'tcp:$appPort']);
+      final result = await Process.run('adb', [
+        'forward',
+        'tcp:$fwPort',
+        'tcp:$appPort',
+      ]);
       if (result.exitCode == 0) {
-        Log.i('[Connectivity] ✅ ADB forward OK: localhost:$fwPort → device:$appPort');
+        Log.i(
+          '[Connectivity] ✅ ADB forward OK: localhost:$fwPort → device:$appPort',
+        );
       } else {
-        Log.i('[Connectivity] ⚠️  ADB forward falló (puede estar ya configurado): ${result.stderr}');
+        Log.i(
+          '[Connectivity] ⚠️  ADB forward falló (puede estar ya configurado): ${result.stderr}',
+        );
       }
     } catch (e) {
       Log.i('[Connectivity] ⚠️  adb no disponible en PATH: $e');
@@ -136,11 +149,17 @@ class McpConnectivity {
     try {
       // iproxy corre en background, no esperamos resultado
       await Process.start('iproxy', ['$fwPort', '$appPort']);
-      Log.i('[Connectivity] ✅ iproxy iniciado: localhost:$fwPort → device:$appPort');
+      Log.i(
+        '[Connectivity] ✅ iproxy iniciado: localhost:$fwPort → device:$appPort',
+      );
     } catch (e) {
-      Log.i('[Connectivity] ⚠️  iproxy no disponible. Usa la IP del dispositivo directamente.');
+      Log.i(
+        '[Connectivity] ⚠️  iproxy no disponible. Usa la IP del dispositivo directamente.',
+      );
       Log.i('[Connectivity]    Instalar: brew install libimobiledevice');
-      Log.i('[Connectivity]    Alternativa: TESTBRIDGE_URL=http://<device-ip>:$appPort');
+      Log.i(
+        '[Connectivity]    Alternativa: TESTBRIDGE_URL=http://<device-ip>:$appPort',
+      );
     }
 
     return McpConnectivityInfo(

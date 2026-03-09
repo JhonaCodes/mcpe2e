@@ -9,22 +9,22 @@ Complete walkthrough of an AI-driven E2E test session using Claude + mcpe2e.
 ### Tools available to Claude (27 total)
 
 ```
-Contexto:   get_app_context · list_test_cases · inspect_ui · capture_screenshot
-Gestos:     tap_widget · double_tap_widget · long_press_widget · swipe_widget
-            scroll_widget · scroll_until_visible · tap_by_label
-Input:      input_text · clear_text · select_dropdown · toggle_widget · set_slider_value
-Teclado:    hide_keyboard · press_back · wait
-Aserciones: assert_exists · assert_text · assert_visible · assert_enabled
-            assert_selected · assert_value · assert_count
+Context:     get_app_context · list_test_cases · inspect_ui · capture_screenshot
+Gestures:    tap_widget · double_tap_widget · long_press_widget · swipe_widget
+             scroll_widget · scroll_until_visible · tap_by_label
+Input:       input_text · clear_text · select_dropdown · toggle_widget · set_slider_value
+Keyboard:    hide_keyboard · press_back · wait
+Assertions:  assert_exists · assert_text · assert_visible · assert_enabled
+             assert_selected · assert_value · assert_count
 ```
 
 ---
 
 ### Step 1: Claude inspects the UI
 
-Before doing anything, Claude inspects what's on screen. Two options:
+Before acting, Claude inspects what is on screen. Two options:
 
-**Option A — Registered widgets only** (faster, less tokens):
+**Option A — Registered widgets only** (faster, fewer tokens):
 ```
 Claude calls: get_app_context
 ```
@@ -51,7 +51,7 @@ Response:
 }
 ```
 
-**Option B — Full widget tree** (zero registration needed, more complete):
+**Option B — Full widget tree** (no registration needed, most complete):
 ```
 Claude calls: inspect_ui
 ```
@@ -74,7 +74,7 @@ Response:
 }
 ```
 
-> `inspect_ui` found that the login button is **disabled** (`enabled: false`). Claude knows it needs to fill the fields first.
+> `inspect_ui` found that the login button is **disabled** (`enabled: false`). Claude knows it must fill both fields first.
 
 ---
 
@@ -83,7 +83,7 @@ Response:
 ```
 Claude calls: input_text
   key: "auth.email_field"
-  text: "test@example.com"
+  text: "user@example.com"
 ```
 
 The Flutter library:
@@ -104,24 +104,20 @@ Claude calls: input_text
 
 ---
 
-### Step 4: Claude verifies button is now enabled
+### Step 4: Claude verifies the button is now enabled
 
-```
-Claude calls: inspect_ui
-```
-
-Now the button entry shows `"enabled": true` — the form validation passed.
-
-Or using a targeted assertion:
 ```
 Claude calls: assert_enabled
   key: "auth.login_button"
 ```
+
 Response: `{"success":true,"widgetKey":"auth.login_button","eventType":"assertEnabled"}`
+
+Or using `inspect_ui` again — the button entry now shows `"enabled": true`.
 
 ---
 
-### Step 5: Claude taps login
+### Step 5: Claude taps the login button
 
 ```
 Claude calls: tap_widget
@@ -129,8 +125,8 @@ Claude calls: tap_widget
 ```
 
 The Flutter library:
-1. Finds widget by key
-2. Gets `RenderBox` and calculates center
+1. Finds the widget by key
+2. Gets its `RenderBox` and calculates the center point
 3. Dispatches `PointerDownEvent` + `PointerUpEvent` via `GestureBinding`
 
 ---
@@ -144,15 +140,15 @@ Claude calls: wait
 
 ---
 
-### Step 7: Claude verifies navigation
+### Step 7: Claude verifies the navigation result
 
 ```
 Claude calls: inspect_ui
 ```
 
-Response now shows different widgets — `DashboardScreen` content.
+The response now shows `DashboardScreen` content — the login succeeded.
 
-Or assert the screen identifier:
+Or using a targeted assertion on the screen identifier:
 ```
 Claude calls: assert_exists
   key: "screen.dashboard"
@@ -160,100 +156,114 @@ Claude calls: assert_exists
 
 ---
 
-### Step 8: Claude takes a screenshot (optional)
-
-When layout verification is needed (not just data values):
+### Step 8: Claude takes a screenshot (optional visual check)
 
 ```
 Claude calls: capture_screenshot
 ```
 
-Claude receives the PNG image and can visually confirm the dashboard layout, colors, and arrangement.
+Claude receives the PNG image and can visually confirm the dashboard layout.
 
 ---
 
-## Full conversation transcript
+## Full conversation example
 
 ```
-User: "Test the login flow with test@example.com / secret123"
+User: "Test the login flow with user@example.com and password secret123"
 
 Claude: Checking what's on screen...
-→ inspect_ui
-→ "Login screen. Email field (empty), password field (empty),
-   login button (disabled — needs input first)."
+  → inspect_ui
+  → "Login screen. Email field (empty), password field (empty),
+     login button (disabled — needs both fields filled)."
 
-Claude: Filling email...
-→ input_text(key=auth.email_field, text=test@example.com)
+Claude: Typing email...
+  → input_text(key=auth.email_field, text=user@example.com)
 
-Claude: Filling password...
-→ input_text(key=auth.password_field, text=secret123)
+Claude: Typing password...
+  → input_text(key=auth.password_field, text=secret123)
 
-Claude: Verifying button is enabled now...
-→ assert_enabled(key=auth.login_button)
-→ "Button is enabled. Tapping..."
+Claude: Checking the button is enabled...
+  → assert_enabled(key=auth.login_button)
+  → "Button is enabled. Tapping..."
 
-→ tap_widget(key=auth.login_button)
-→ wait(duration_ms=2000)
+  → tap_widget(key=auth.login_button)
+  → wait(duration_ms=2000)
 
-Claude: Verifying login result...
-→ inspect_ui
-→ "Now on DashboardScreen. Login flow passed."
+Claude: Verifying the result...
+  → inspect_ui
+  → "Now on DashboardScreen. Login flow passed."
 ```
 
 ---
 
-## Error scenario: wrong value on screen
+## Verifying data values on screen
 
 ```
 User: "Verify the order total is $150.00"
 
 Claude:
-→ inspect_ui
-→ Found: { "type": "Text", "value": "Total: $149.99", "depth": 8 }
-→ "Total shows $149.99, not $150.00. Value mismatch detected."
+  → inspect_ui
+  → Found: { "type": "Text", "value": "Total: $149.99", "depth": 8 }
+  → "Total shows $149.99, not $150.00. Value mismatch detected."
 ```
 
-> `inspect_ui` directly reads the `Text` widget value from the live widget tree — no selectors, no OCR, exact string match.
+> `inspect_ui` reads the exact `Text` widget value from the live widget tree — no selectors, no OCR, exact string.
 
 ---
 
-## Error scenario: form validation
+## Form validation scenario
 
 ```
-User: "Test login with an invalid email"
+User: "Test login with an invalid password"
 
 Claude:
-→ input_text(key=auth.email_field, text=not-an-email)
-→ tap_widget(key=auth.login_button)
-→ wait(duration_ms=500)
-→ inspect_ui
-→ Found: { "type": "Text", "value": "Please enter a valid email", "depth": 9 }
-→ "Validation error shown correctly. Test passed."
+  → input_text(key=auth.email_field, text=user@example.com)
+  → input_text(key=auth.password_field, text=abc)   ← only 3 chars
+  → tap_widget(key=auth.login_button)
+  → wait(duration_ms=500)
+  → inspect_ui
+  → Found: { "type": "Text", "value": "Password must be at least 6 characters", "key": "auth.error_message" }
+  → "Validation error shown correctly. Test passed."
 ```
 
 ---
 
-## Dropdown selection example
+## Dropdown selection
 
 ```
 User: "Select 'Express' in the shipping dropdown"
 
 Claude:
-→ get_app_context   (to find the dropdown key)
-→ select_dropdown(key=order.shipping_type, value=Express)
-→ inspect_ui        (verify selection applied)
+  → get_app_context          (find the dropdown key)
+  → select_dropdown(key=order.shipping_type, value=Express)
+  → inspect_ui               (verify selection applied)
 ```
 
 ---
 
-## Scroll and interact example
+## Scroll and interact
 
 ```
-User: "Tap the 'Cancel' button in the order list — it's the third item"
+User: "Tap the Cancel button on the third item in the list"
 
 Claude:
-→ scroll_until_visible(key=order.list, target_key=order.card.3)
-→ tap_widget(key=order.card.3.cancel_button)
-→ wait(duration_ms=1000)
-→ assert_exists(key=modal.confirm.cancel)   (confirm dialog appeared)
+  → scroll_until_visible(key=order.list, target_key=order.item.2)
+  → tap_widget(key=order.item.2.cancel_button)
+  → wait(duration_ms=1000)
+  → assert_exists(key=modal.confirm.cancel)   ← confirm dialog appeared
+```
+
+---
+
+## Settings interaction
+
+```
+User: "Set volume to 75% and verify notifications are enabled"
+
+Claude:
+  → set_slider_value(key=settings.volume_slider, value=0.75)
+  → inspect_ui
+  → Found: { "type": "Slider", "value": 0.75, "key": "settings.volume_slider" } ✓
+  → Found: { "type": "Switch", "value": true, "key": "settings.notifications_switch" } ✓
+  → "Volume is at 75%. Notifications are enabled."
 ```

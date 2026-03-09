@@ -60,37 +60,37 @@ class McpEventExecutor {
     Log.i('[Executor] ⚡ $eventType → "$widgetKey"');
     return switch (eventType) {
       // ── Gestos básicos ──────────────────────────────────────────────────
-      McpEventType.tap               => _tap(widgetKey),
-      McpEventType.doubleTap         => _doubleTap(widgetKey),
-      McpEventType.longPress         => _longPress(widgetKey, params),
-      McpEventType.swipe             => _swipe(widgetKey, params),
-      McpEventType.drag              => _drag(widgetKey, params),
-      McpEventType.scroll            => _scroll(widgetKey, params),
-      McpEventType.pinch             => _pinch(widgetKey, params),
+      McpEventType.tap => _tap(widgetKey),
+      McpEventType.doubleTap => _doubleTap(widgetKey),
+      McpEventType.longPress => _longPress(widgetKey, params),
+      McpEventType.swipe => _swipe(widgetKey, params),
+      McpEventType.drag => _drag(widgetKey, params),
+      McpEventType.scroll => _scroll(widgetKey, params),
+      McpEventType.pinch => _pinch(widgetKey, params),
       // ── Texto e input ────────────────────────────────────────────────────
-      McpEventType.textInput         => _textInput(widgetKey, params),
-      McpEventType.clearText         => _clearText(widgetKey),
-      McpEventType.selectDropdown    => _selectDropdown(widgetKey, params),
-      McpEventType.toggle            => _toggle(widgetKey),
-      McpEventType.setSliderValue    => _setSliderValue(widgetKey, params),
+      McpEventType.textInput => _textInput(widgetKey, params),
+      McpEventType.clearText => _clearText(widgetKey),
+      McpEventType.selectDropdown => _selectDropdown(widgetKey, params),
+      McpEventType.toggle => _toggle(widgetKey),
+      McpEventType.setSliderValue => _setSliderValue(widgetKey, params),
       // ── Teclado ─────────────────────────────────────────────────────────
-      McpEventType.hideKeyboard      => _hideKeyboard(),
-      McpEventType.showKeyboard      => _showKeyboard(widgetKey),
+      McpEventType.hideKeyboard => _hideKeyboard(),
+      McpEventType.showKeyboard => _showKeyboard(widgetKey),
       // ── Navegación ───────────────────────────────────────────────────────
-      McpEventType.pressBack         => _pressBack(widgetKey),
+      McpEventType.pressBack => _pressBack(widgetKey),
       // ── Scroll inteligente ───────────────────────────────────────────────
       McpEventType.scrollUntilVisible => _scrollUntilVisible(widgetKey, params),
-      McpEventType.tapByLabel        => _tapByLabel(params),
+      McpEventType.tapByLabel => _tapByLabel(params),
       // ── Utilidades ───────────────────────────────────────────────────────
-      McpEventType.wait              => _wait(params),
+      McpEventType.wait => _wait(params),
       // ── Aserciones ───────────────────────────────────────────────────────
-      McpEventType.assertExists      => _assertExists(widgetKey),
-      McpEventType.assertText        => _assertText(widgetKey, params),
-      McpEventType.assertVisible     => _assertVisible(widgetKey),
-      McpEventType.assertEnabled     => _assertEnabled(widgetKey),
-      McpEventType.assertSelected    => _assertSelected(widgetKey),
-      McpEventType.assertValue       => _assertValue(widgetKey, params),
-      McpEventType.assertCount       => _assertCount(widgetKey, params),
+      McpEventType.assertExists => _assertExists(widgetKey),
+      McpEventType.assertText => _assertText(widgetKey, params),
+      McpEventType.assertVisible => _assertVisible(widgetKey),
+      McpEventType.assertEnabled => _assertEnabled(widgetKey),
+      McpEventType.assertSelected => _assertSelected(widgetKey),
+      McpEventType.assertValue => _assertValue(widgetKey, params),
+      McpEventType.assertCount => _assertCount(widgetKey, params),
     };
   }
 
@@ -125,9 +125,13 @@ class McpEventExecutor {
     final duration = params?.duration ?? const Duration(milliseconds: 500);
 
     Log.i('[Executor] ⏱️  LongPress ${duration.inMilliseconds}ms');
-    GestureBinding.instance.handlePointerEvent(PointerDownEvent(position: center, pointer: 1));
+    GestureBinding.instance.handlePointerEvent(
+      PointerDownEvent(position: center, pointer: 1),
+    );
     await Future.delayed(duration);
-    GestureBinding.instance.handlePointerEvent(PointerUpEvent(position: center, pointer: 1));
+    GestureBinding.instance.handlePointerEvent(
+      PointerUpEvent(position: center, pointer: 1),
+    );
     return true;
   }
 
@@ -144,11 +148,11 @@ class McpEventExecutor {
     final duration = params?.duration ?? const Duration(milliseconds: 300);
 
     final end = switch (direction) {
-      'left'  => center + Offset(-distance, 0),
+      'left' => center + Offset(-distance, 0),
       'right' => center + Offset(distance, 0),
-      'up'    => center + Offset(0, -distance),
-      'down'  => center + Offset(0, distance),
-      _       => center + Offset(0, -distance),
+      'up' => center + Offset(0, -distance),
+      'down' => center + Offset(0, distance),
+      _ => center + Offset(0, -distance),
     };
 
     Log.i('[Executor] 👉 Swipe $direction ${distance.toStringAsFixed(0)}px');
@@ -162,7 +166,11 @@ class McpEventExecutor {
     if (rb == null || params?.targetPosition == null) return _notFound(key);
     final duration = params?.duration ?? const Duration(milliseconds: 500);
     Log.i('[Executor] 🖱️  Drag → ${params!.targetPosition}');
-    _simulator.simulateSwipe(_simulator.centerOf(rb), params.targetPosition!, duration);
+    _simulator.simulateSwipe(
+      _simulator.centerOf(rb),
+      params.targetPosition!,
+      duration,
+    );
     return true;
   }
 
@@ -176,14 +184,22 @@ class McpEventExecutor {
 
     // Permite especificar dirección semántica además de deltas numéricos
     final direction = params?.direction;
-    final deltaY = direction == 'down' ? 200.0
-        : direction == 'up' ? -200.0
+    final deltaY = direction == 'down'
+        ? 200.0
+        : direction == 'up'
+        ? -200.0
         : (params?.deltaY ?? 0.0);
-    final deltaX = direction == 'right' ? 200.0
-        : direction == 'left' ? -200.0
+    final deltaX = direction == 'right'
+        ? 200.0
+        : direction == 'left'
+        ? -200.0
         : (params?.deltaX ?? 0.0);
 
-    _simulator.simulateScroll(_simulator.centerOf(rb), deltaX: deltaX, deltaY: deltaY);
+    _simulator.simulateScroll(
+      _simulator.centerOf(rb),
+      deltaX: deltaX,
+      deltaY: deltaY,
+    );
     return true;
   }
 
@@ -222,12 +238,13 @@ class McpEventExecutor {
     void findController(Element el) {
       if (controller != null) return;
       controller = switch (el.widget) {
-        TextField w      => w.controller,
-        TextFormField w  => w.controller,
-        _                => null,
+        TextField w => w.controller,
+        TextFormField w => w.controller,
+        _ => null,
       };
       if (controller == null) el.visitChildElements(findController);
     }
+
     context.visitChildElements(findController);
 
     if (controller == null) {
@@ -255,6 +272,7 @@ class McpEventExecutor {
           el.visitChildElements(callOnChanged);
       }
     }
+
     context.visitChildElements(callOnChanged);
 
     // Tap para enfocar
@@ -277,12 +295,13 @@ class McpEventExecutor {
     void find(Element el) {
       if (controller != null) return;
       controller = switch (el.widget) {
-        TextField w      => w.controller,
-        TextFormField w  => w.controller,
-        _                => null,
+        TextField w => w.controller,
+        TextFormField w => w.controller,
+        _ => null,
       };
       if (controller == null) el.visitChildElements(find);
     }
+
     context.visitChildElements(find);
 
     if (controller == null) return _notFound('$key (TextEditingController)');
@@ -301,6 +320,7 @@ class McpEventExecutor {
           el.visitChildElements(notifyEmpty);
       }
     }
+
     context.visitChildElements(notifyEmpty);
 
     await Future.delayed(const Duration(milliseconds: 100));
@@ -319,7 +339,9 @@ class McpEventExecutor {
     final context = _registry.getContext(key);
     if (context == null) return _notFound(key);
     if (params?.dropdownValue == null && params?.dropdownIndex == null) {
-      Log.i('[Executor] ❌ selectDropdown requiere dropdownValue o dropdownIndex');
+      Log.i(
+        '[Executor] ❌ selectDropdown requiere dropdownValue o dropdownIndex',
+      );
       return false;
     }
 
@@ -338,6 +360,7 @@ class McpEventExecutor {
       }
       el.visitChildElements(findDropdown);
     }
+
     context.visitChildElements(findDropdown);
 
     if (dropdown == null || onChanged == null || items == null) {
@@ -351,7 +374,9 @@ class McpEventExecutor {
     if (params!.dropdownIndex != null) {
       final idx = params.dropdownIndex!;
       if (idx < 0 || idx >= items!.length) {
-        Log.i('[Executor] ❌ Índice $idx fuera de rango (0..${items!.length - 1})');
+        Log.i(
+          '[Executor] ❌ Índice $idx fuera de rango (0..${items!.length - 1})',
+        );
         return false;
       }
       onChanged!(items![idx].value);
@@ -363,7 +388,9 @@ class McpEventExecutor {
     final search = params.dropdownValue!.toLowerCase();
     for (final item in items!) {
       final val = item.value.toString().toLowerCase();
-      if (val == search || val.contains(search) || val.split('.').last == search) {
+      if (val == search ||
+          val.contains(search) ||
+          val.split('.').last == search) {
         Log.i('[Executor] ✅ Seleccionando: ${item.value}');
         onChanged!(item.value);
         await Future.delayed(const Duration(milliseconds: 300));
@@ -400,6 +427,7 @@ class McpEventExecutor {
           el.visitChildElements(findToggle);
       }
     }
+
     context.visitChildElements(findToggle);
 
     if (!toggled) {
@@ -497,7 +525,9 @@ class McpEventExecutor {
     final screenH = view.physicalSize.height / view.devicePixelRatio;
     final screenW = view.physicalSize.width / view.devicePixelRatio;
 
-    Log.i('[Executor] 📜➡️  ScrollUntilVisible "$targetKey" (max $maxAttempts)');
+    Log.i(
+      '[Executor] 📜➡️  ScrollUntilVisible "$targetKey" (max $maxAttempts)',
+    );
 
     for (int i = 0; i < maxAttempts; i++) {
       final targetRb = _registry.getRenderBox(targetKey);
@@ -610,12 +640,15 @@ class McpEventExecutor {
       }
       el.visitChildElements(findText);
     }
+
     context.visitChildElements(findText);
 
     if (textWidget == null) return false;
     final actual = textWidget!.data ?? '';
     final matches = actual == params!.expectedText;
-    Log.i('[Executor] ✅ AssertText: expected="${params.expectedText}", actual="$actual" → $matches');
+    Log.i(
+      '[Executor] ✅ AssertText: expected="${params.expectedText}", actual="$actual" → $matches',
+    );
     return matches;
   }
 
@@ -632,13 +665,16 @@ class McpEventExecutor {
     final screenW = view.physicalSize.width / view.devicePixelRatio;
     final pos = rb.localToGlobal(Offset.zero);
 
-    final isVisible = pos.dy >= 0 &&
+    final isVisible =
+        pos.dy >= 0 &&
         pos.dy + rb.size.height <= screenH &&
         pos.dx >= 0 &&
         pos.dx + rb.size.width <= screenW;
 
-    Log.i('[Executor] 👁️  AssertVisible "$key" = $isVisible '
-        '(y=${pos.dy.toStringAsFixed(0)}, h=${rb.size.height.toStringAsFixed(0)}, screen=${screenH.toStringAsFixed(0)})');
+    Log.i(
+      '[Executor] 👁️  AssertVisible "$key" = $isVisible '
+      '(y=${pos.dy.toStringAsFixed(0)}, h=${rb.size.height.toStringAsFixed(0)}, screen=${screenH.toStringAsFixed(0)})',
+    );
     return isVisible;
   }
 
@@ -656,22 +692,23 @@ class McpEventExecutor {
     void findEnabled(Element el) {
       if (enabled != null) return;
       enabled = switch (el.widget) {
-        ElevatedButton w  => w.onPressed != null,
-        TextButton w      => w.onPressed != null,
-        OutlinedButton w  => w.onPressed != null,
-        IconButton w      => w.onPressed != null,
-        TextField w       => w.enabled ?? true,
-        TextFormField w   => w.enabled != false,
-        Checkbox w        => w.onChanged != null,
-        Switch w          => w.onChanged != null,
-        Radio w           => w.onChanged != null,
-        Slider w          => w.onChanged != null,
-        AbsorbPointer w   => !w.absorbing,
-        IgnorePointer w   => !w.ignoring,
-        _                 => null,
+        ElevatedButton w => w.onPressed != null,
+        TextButton w => w.onPressed != null,
+        OutlinedButton w => w.onPressed != null,
+        IconButton w => w.onPressed != null,
+        TextField w => w.enabled ?? true,
+        TextFormField w => w.enabled != false,
+        Checkbox w => w.onChanged != null,
+        Switch w => w.onChanged != null,
+        Radio w => w.onChanged != null,
+        Slider w => w.onChanged != null,
+        AbsorbPointer w => !w.absorbing,
+        IgnorePointer w => !w.ignoring,
+        _ => null,
       };
       if (enabled == null) el.visitChildElements(findEnabled);
     }
+
     context.visitChildElements(findEnabled);
 
     final result = enabled ?? true;
@@ -692,12 +729,13 @@ class McpEventExecutor {
       if (selected != null) return;
       selected = switch (el.widget) {
         Checkbox w => w.value ?? false,
-        Switch w   => w.value,
-        Radio w    => w.groupValue == w.value,
-        _          => null,
+        Switch w => w.value,
+        Radio w => w.groupValue == w.value,
+        _ => null,
       };
       if (selected == null) el.visitChildElements(findSelected);
     }
+
     context.visitChildElements(findSelected);
 
     if (selected == null) {
@@ -720,12 +758,13 @@ class McpEventExecutor {
     void find(Element el) {
       if (controller != null) return;
       controller = switch (el.widget) {
-        TextField w      => w.controller,
-        TextFormField w  => w.controller,
-        _                => null,
+        TextField w => w.controller,
+        TextFormField w => w.controller,
+        _ => null,
       };
       if (controller == null) el.visitChildElements(find);
     }
+
     context.visitChildElements(find);
 
     if (controller == null) {
@@ -734,7 +773,9 @@ class McpEventExecutor {
     }
 
     final matches = controller!.text == params!.expectedText;
-    Log.i('[Executor] ✅ AssertValue "$key": expected="${params.expectedText}", actual="${controller!.text}" → $matches');
+    Log.i(
+      '[Executor] ✅ AssertValue "$key": expected="${params.expectedText}", actual="${controller!.text}" → $matches',
+    );
     return matches;
   }
 
@@ -749,13 +790,14 @@ class McpEventExecutor {
     void findCount(Element el) {
       if (count != null) return;
       count = switch (el.widget) {
-        Column w   => w.children.length,
-        Row w      => w.children.length,
+        Column w => w.children.length,
+        Row w => w.children.length,
         ListView _ => _countChildren(el),
-        _          => null,
+        _ => null,
       };
       if (count == null) el.visitChildElements(findCount);
     }
+
     context.visitChildElements(findCount);
 
     if (count == null) {
@@ -764,7 +806,9 @@ class McpEventExecutor {
     }
 
     final matches = count == params!.expectedCount;
-    Log.i('[Executor] ✅ AssertCount "$key": expected=${params.expectedCount}, actual=$count → $matches');
+    Log.i(
+      '[Executor] ✅ AssertCount "$key": expected=${params.expectedCount}, actual=$count → $matches',
+    );
     return matches;
   }
 
