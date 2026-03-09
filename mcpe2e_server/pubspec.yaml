@@ -1,0 +1,8 @@
+name: mcpe2e_server
+description: Dart MCP server for Flutter E2E testing via HTTP bridge
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  http: ^1.1.0
