@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.8] - 2026-03-10
+
+### Changed
+- Removed macos-x86_64 from CI matrix (macos-13 runner consistently hangs)
+
+---
+
 ## [1.0.7] - 2026-03-10
 
 ### Added

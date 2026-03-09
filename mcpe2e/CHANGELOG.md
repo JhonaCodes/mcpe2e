@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.8] - 2026-03-10
+
+### Changed
+- Version bump to 1.0.8
+
+---
+
 ## [1.0.7] - 2026-03-10
 
 ### Added
