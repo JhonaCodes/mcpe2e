@@ -98,14 +98,15 @@ class _Setup {
       };
 
   void _enableClaude() {
-    try { Process.runSync('claude', ['mcp', 'remove', 'mcpe2e']); } catch (_) {}
+    try { Process.runSync('claude', ['mcp', 'remove', 'mcpe2e', '--scope', 'user']); } catch (_) {}
     Process.runSync('claude', [
-      'mcp', 'add', 'mcpe2e', '-e', 'TESTBRIDGE_URL=$bridgeUrl', '--', binaryPath,
+      'mcp', 'add', '--scope', 'user',
+      'mcpe2e', '-e', 'TESTBRIDGE_URL=$bridgeUrl', '--', binaryPath,
     ]);
   }
 
   void _disableClaude() {
-    try { Process.runSync('claude', ['mcp', 'remove', 'mcpe2e']); } catch (_) {}
+    try { Process.runSync('claude', ['mcp', 'remove', 'mcpe2e', '--scope', 'user']); } catch (_) {}
   }
 
   void _patchJson(String path, {required bool add}) {

@@ -200,7 +200,7 @@ echo ""
 # ── Register: Claude Code ─────────────────────────────────────────────────────
 if $register_claude_code; then
   if command -v claude &>/dev/null; then
-    claude mcp add mcpe2e -e TESTBRIDGE_URL="${TESTBRIDGE_URL}" -- "$BINARY_PATH"
+    claude mcp add --scope user mcpe2e -e TESTBRIDGE_URL="${TESTBRIDGE_URL}" -- "$BINARY_PATH"
     echo "  ✓ Claude Code"
   else
     echo "  ✗ Claude Code: CLI not found — install from https://claude.ai/download"
