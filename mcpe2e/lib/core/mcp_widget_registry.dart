@@ -92,11 +92,46 @@ class McpWidgetRegistry {
 
   /// Retorna el RenderBox del widget, necesario para calcular posición y tamaño.
   ///
-  /// Retorna null si el widget no está montado o no tiene renderObject todavía.
+  /// Estrategia dual:
+  /// 1. Si el widget usa [getGlobalKey] como key → usa globalKey.currentContext
+  /// 2. Si el widget usa [McpMetadataKey] directo como key → camina el element
+  ///    tree buscando el primer elemento cuyo widget.key tenga el mismo id,
+  ///    luego retorna su primer RenderBox descendiente.
   RenderBox? getRenderBox(String id) {
+    // Estrategia 1: GlobalKey interna (flujo original)
     final context = getContext(id);
-    if (context == null) return null;
-    return context.findRenderObject() as RenderBox?;
+    if (context != null) {
+      final rb = context.findRenderObject() as RenderBox?;
+      if (rb != null) return rb;
+    }
+
+    // Estrategia 2: McpMetadataKey usado directamente en el árbol
+    RenderBox? found;
+
+    void visitElement(Element el) {
+      if (found != null) return;
+      final key = el.widget.key;
+      if (key is McpMetadataKey && key.id == id) {
+        found = _firstRenderBox(el);
+        return;
+      }
+      el.visitChildElements(visitElement);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildElements(visitElement);
+    return found;
+  }
+
+  /// Retorna el primer [RenderBox] en el subárbol de [el].
+  RenderBox? _firstRenderBox(Element el) {
+    final ro = el.renderObject;
+    if (ro is RenderBox) return ro;
+    RenderBox? found;
+    el.visitChildElements((child) {
+      if (found != null) return;
+      found = _firstRenderBox(child);
+    });
+    return found;
   }
 
   /// Retorna la metadata de un widget específico.

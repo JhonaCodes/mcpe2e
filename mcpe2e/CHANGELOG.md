@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1] - 2026-03-09
+
+### Fixed
+- `getRenderBox` ahora encuentra widgets que usan `McpMetadataKey` directamente como key (sin `getGlobalKey()`). Agrega fallback de element-tree walk: busca el primer elemento cuyo `widget.key.id` coincida, luego retorna su primer `RenderBox` descendiente. Fix para tap/swipe/scroll que fallaban cuando la app usa `const McpMetadataKey(...)` directo en widgets.
+
+---
+
 ## [0.3.0] - 2026-03-09
 
 ### Added
