@@ -106,7 +106,16 @@ Future<bool> _download(String asset) async {
     final res  = await req.close();
     final body = await res.transform(utf8.decoder).join();
     client.close();
-    tag = (jsonDecode(body) as Map)['tag_name'] as String;
+
+    final decoded = jsonDecode(body) as Map;
+    final rawTag  = decoded['tag_name'];
+    if (rawTag == null) {
+      print('$_red  ✗ No GitHub release found yet.$_r');
+      print('    The CI build may still be running:');
+      print('    $_dim https://github.com/$_repo/actions$_r');
+      return false;
+    }
+    tag = rawTag as String;
   } catch (e) {
     print('$_red  ✗ Could not fetch latest release: $e$_r');
     return false;
