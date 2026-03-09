@@ -88,7 +88,30 @@ class McpWidgetRegistry {
   /// El contexto solo existe mientras el widget esté montado en el árbol.
   /// Si el widget fue desplazado fuera del viewport pero sigue montado,
   /// el contexto existe pero el widget puede no ser visible.
-  BuildContext? getContext(String id) => _widgets[id]?.globalKey.currentContext;
+  /// Retorna el BuildContext del widget montado, o null si no está en pantalla.
+  ///
+  /// Estrategia dual:
+  /// 1. GlobalKey interna (flujo original con getGlobalKey)
+  /// 2. Element-tree walk buscando McpMetadataKey con ese id (flujo directo)
+  BuildContext? getContext(String id) {
+    // Estrategia 1: GlobalKey interna
+    final ctx = _widgets[id]?.globalKey.currentContext;
+    if (ctx != null) return ctx;
+
+    // Estrategia 2: caminar el árbol buscando McpMetadataKey
+    BuildContext? found;
+    void visit(Element el) {
+      if (found != null) return;
+      final key = el.widget.key;
+      if (key is McpMetadataKey && key.id == id) {
+        found = el;
+        return;
+      }
+      el.visitChildElements(visit);
+    }
+    WidgetsBinding.instance.rootElement?.visitChildElements(visit);
+    return found;
+  }
 
   /// Retorna el RenderBox del widget, necesario para calcular posición y tamaño.
   ///
