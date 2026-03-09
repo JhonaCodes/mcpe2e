@@ -193,6 +193,50 @@ curl -X POST http://localhost:7778/event \
 
 `button` · `textField` · `text` · `list` · `card` · `image` · `container` · `dropdown` · `checkbox` · `radio` · `switchWidget` · `slider` · `tab` · `custom`
 
+## McpMetadataKey
+
+Extends Flutter's `Key` — assign it directly to any widget:
+
+```dart
+const submitButton = McpMetadataKey(
+  id: 'checkout.submit_button',   // unique ID used by mcpe2e_server tools
+  widgetType: McpWidgetType.button,
+  description: 'Submit order',
+  screen: 'CheckoutScreen',
+);
+
+ElevatedButton(
+  key: submitButton,  // McpMetadataKey IS a Key
+  onPressed: _submit,
+  child: const Text('Place Order'),
+)
+```
+
+## McpEventParams
+
+Optional parameters passed alongside an event type:
+
+```dart
+McpEventParams({
+  String? text,              // textInput, tapByLabel
+  Duration? duration,        // longPress, wait
+  double? distance,          // swipe
+  String? direction,         // swipe, scroll ('up' | 'down' | 'left' | 'right')
+  double? deltaX,            // scroll — horizontal delta
+  double? deltaY,            // scroll — vertical delta
+  bool clearFirst,           // textInput — clear field before typing
+  String? expectedText,      // assertText, assertValue
+  double? scale,             // pinch
+  String? dropdownValue,     // selectDropdown — match by value string
+  int? dropdownIndex,        // selectDropdown — match by index
+  double? sliderValue,       // setSliderValue — 0.0 (min) to 1.0 (max)
+  String? targetKey,         // scrollUntilVisible — widget to scroll into view
+  int? maxScrollAttempts,    // scrollUntilVisible — default 20
+  String? label,             // tapByLabel — visible text to find and tap
+  int? expectedCount,        // assertCount — expected child count
+})
+```
+
 ## Widget ID Convention
 
 ```
