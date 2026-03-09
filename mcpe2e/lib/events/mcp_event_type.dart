@@ -76,6 +76,9 @@ enum McpEventType {
 
   /// Tapear el widget cuyo texto interno coincide con el label dado
   tapByLabel,
+
+  /// Tap en coordenadas absolutas de pantalla (sin necesidad de widget registrado)
+  tapAt,
 }
 
 /// Parámetros adicionales para eventos
@@ -109,6 +112,10 @@ class McpEventParams {
   // assertCount
   final int? expectedCount; // Cantidad esperada de hijos
 
+  // tapAt — coordenadas absolutas de pantalla
+  final double? dx; // Coordenada X absoluta en logical pixels
+  final double? dy; // Coordenada Y absoluta en logical pixels
+
   const McpEventParams({
     this.text,
     this.duration,
@@ -127,6 +134,8 @@ class McpEventParams {
     this.maxScrollAttempts,
     this.label,
     this.expectedCount,
+    this.dx,
+    this.dy,
   });
 
   /// Crear desde Map (útil para HTTP requests)
@@ -150,6 +159,8 @@ class McpEventParams {
       maxScrollAttempts: json['maxScrollAttempts'] as int?,
       label: json['label'] as String?,
       expectedCount: json['expectedCount'] as int?,
+      dx: json['dx']?.toDouble(),
+      dy: json['dy']?.toDouble(),
     );
   }
 
@@ -172,6 +183,8 @@ class McpEventParams {
       if (maxScrollAttempts != null) 'maxScrollAttempts': maxScrollAttempts,
       if (label != null) 'label': label,
       if (expectedCount != null) 'expectedCount': expectedCount,
+      if (dx != null) 'dx': dx,
+      if (dy != null) 'dy': dy,
     };
   }
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.4] - 2026-03-09
+
+### Added
+- `tapAt` event type — tap by absolute screen coordinates (logical pixels). No widget registration required. Useful for dynamic cards, list items, or any widget without an ID. Accepts `dx` (X) and `dy` (Y) params. Coordinates match the `x`/`y` values from `inspect_ui`.
+- `McpEventParams.dx` and `McpEventParams.dy` fields for absolute coordinate taps.
+
+---
+
 ## [0.3.1] - 2026-03-09
 
 ### Fixed

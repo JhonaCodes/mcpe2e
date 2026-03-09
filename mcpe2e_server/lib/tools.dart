@@ -131,6 +131,23 @@ final List<Map<String, dynamic>> toolDefinitions = [
     },
   },
   {
+    'name': 'tap_at',
+    'description':
+        'Tap en coordenadas absolutas de pantalla (logical pixels). '
+        'Útil para widgets sin ID registrado: cards dinámicas, items de lista, etc. '
+        'Obtén las coordenadas con inspect_ui (campos x, y del nodo) o capture_screenshot. '
+        'Las coordenadas corresponden a la esquina superior izquierda del widget; '
+        'para tapear el centro suma width/2 y height/2.',
+    'inputSchema': {
+      'type': 'object',
+      'properties': {
+        'x': {'type': 'number', 'description': 'Coordenada X en logical pixels'},
+        'y': {'type': 'number', 'description': 'Coordenada Y en logical pixels'},
+      },
+      'required': ['x', 'y'],
+    },
+  },
+  {
     'name': 'tap_by_label',
     'description':
         'Tap en un widget buscándolo por su texto visible. '
@@ -480,6 +497,12 @@ Future<List<Map<String, dynamic>>> callTool(
     'scroll_widget' => () {
         final dir = args['direction'] as String;
         return bridge.get('/action?key=${k(args['key'])}&type=scroll&direction=$dir').then(t);
+      }(),
+
+    'tap_at' => () {
+        final x = args['x'] as num;
+        final y = args['y'] as num;
+        return bridge.get('/action?key=_&type=tapat&dx=$x&dy=$y').then(t);
       }(),
 
     'tap_by_label' => () {

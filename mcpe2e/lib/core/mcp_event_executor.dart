@@ -81,6 +81,7 @@ class McpEventExecutor {
       // ── Scroll inteligente ───────────────────────────────────────────────
       McpEventType.scrollUntilVisible => _scrollUntilVisible(widgetKey, params),
       McpEventType.tapByLabel => _tapByLabel(params),
+      McpEventType.tapAt => _tapAt(params),
       // ── Utilidades ───────────────────────────────────────────────────────
       McpEventType.wait => _wait(params),
       // ── Aserciones ───────────────────────────────────────────────────────
@@ -604,6 +605,25 @@ class McpEventExecutor {
 
     Log.i('[Executor] ❌ No se encontró widget con label "$label"');
     return false;
+  }
+
+  /// Tap en coordenadas absolutas de pantalla [params.dx] / [params.dy].
+  ///
+  /// No requiere widget registrado — útil para cards, items de lista dinámica
+  /// o cualquier widget sin ID. Las coordenadas son logical pixels desde la
+  /// esquina superior izquierda de la pantalla (igual que el inspect_ui tree).
+  Future<bool> _tapAt(McpEventParams? params) async {
+    final x = params?.dx;
+    final y = params?.dy;
+    if (x == null || y == null) {
+      Log.i('[Executor] ❌ tapAt requiere params.dx y params.dy');
+      return false;
+    }
+    final position = Offset(x, y);
+    Log.i('[Executor] 👆 TapAt (${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})');
+    _simulator.simulateTap(position);
+    await Future.delayed(const Duration(milliseconds: 150));
+    return true;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

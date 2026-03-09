@@ -394,6 +394,7 @@ class McpEventServer {
       'scrolluntilvisible' ||
       'scroll_until_visible' => McpEventType.scrollUntilVisible,
       'tapbylabel' || 'tap_by_label' => McpEventType.tapByLabel,
+      'tapat' || 'tap_at' => McpEventType.tapAt,
       'wait' => McpEventType.wait,
       'assertexists' || 'assert_exists' => McpEventType.assertExists,
       'asserttext' || 'assert_text' => McpEventType.assertText,
@@ -435,6 +436,8 @@ class McpEventServer {
       expectedCount: p['expectedCount'] != null
           ? int.parse(p['expectedCount']!)
           : null,
+      dx: p['dx'] != null ? double.parse(p['dx']!) : null,
+      dy: p['dy'] != null ? double.parse(p['dy']!) : null,
     );
   }
 
