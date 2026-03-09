@@ -32,20 +32,20 @@ class FlutterBridge {
 
   FlutterBridge(this.baseUrl);
 
-  /// GET [path] → retorna response body como String.
+  /// GET [path] → retorna response body como String (forzando UTF-8).
   Future<String> get(String path) async {
     final response = await _client.get(Uri.parse('$baseUrl$path'));
-    return response.body;
+    return utf8.decode(response.bodyBytes);
   }
 
-  /// POST [path] con JSON [body] → retorna response body como String.
+  /// POST [path] con JSON [body] → retorna response body como String (forzando UTF-8).
   Future<String> post(String path, Map<String, dynamic> body) async {
     final response = await _client.post(
       Uri.parse('$baseUrl$path'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
     );
-    return response.body;
+    return utf8.decode(response.bodyBytes);
   }
 }
 

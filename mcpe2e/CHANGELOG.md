@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2] - 2026-03-10
+
+### Changed
+- Version bump to 1.1.2 (sync with mcpe2e_server v1.1.2 — UTF-8 decode fix).
+
+---
+
 ## [1.1.1] - 2026-03-10
 
 ### Changed

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.2] - 2026-03-10
+
+### Fixed
+- `inspect_ui` and all GET/POST calls now force UTF-8 decoding via `utf8.decode(response.bodyBytes)`
+  instead of `response.body`. Dart's http package defaults to Latin-1 when Content-Type has no
+  charset, causing `FormatException: Unexpected extension byte` on any non-ASCII text in the
+  widget tree (special characters, accented letters, etc.).
+
+---
+
 ## [1.1.1] - 2026-03-10
 
 ### Fixed
