@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0] - 2026-03-10
+
+### Changed
+- Version bump to 1.1.0 (sync with mcpe2e_server v1.1.0 — multi-device support release).
+
+---
+
 ## [1.0.8] - 2026-03-10
 
 ### Changed

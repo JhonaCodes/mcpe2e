@@ -1,13 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'device_registry.dart';
 import 'tools.dart';
 import 'version.dart';
 
 class McpServer {
-  final FlutterBridge bridge;
+  final DeviceRegistry registry;
 
-  McpServer(String baseUrl) : bridge = FlutterBridge(baseUrl);
+  McpServer(String baseUrl) : registry = DeviceRegistry(baseUrl);
 
   Future<void> run() async {
     await for (final line in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
@@ -62,7 +63,7 @@ class McpServer {
         final args = params['arguments'] as Map<String, dynamic>? ?? {};
 
         try {
-          final result = await callTool(bridge, toolName, args);
+          final result = await callTool(registry, toolName, args);
           return {
             'jsonrpc': '2.0',
             'id': id,

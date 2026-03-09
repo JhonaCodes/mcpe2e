@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.1.0] - 2026-03-10
+
+### Added
+- `list_devices` tool — discovers all connected Android devices/emulators via ADB, sets up
+  port forwarding automatically (starting at :7778), pings each device to verify mcpe2e is running,
+  and returns serial, port, url, status, and the active screen name when available.
+  Auto-selects the first ready device if none was previously selected.
+- `select_device` tool — switches the active target device by serial ID. All subsequent tool
+  calls (tap, input, assert, inspect_ui, etc.) are directed to the selected device.
+- `DeviceRegistry` — internal class managing one `FlutterBridge` per device with an "active"
+  pointer. All 29 existing tools are unchanged; they transparently use `registry.active`.
+- `run_command` tool — run any shell command (flutter run, flutter build, dart pub get, adb, etc.)
+  with optional `working_dir` and `background` mode. Background=true runs detached (for long-running
+  processes like `flutter run`); background=false waits and returns stdout/stderr. Supports pipes,
+  `&&`, and all shell features via `sh -c`.
+
+### Changed
+- `McpServer` now holds a `DeviceRegistry` instead of a single `FlutterBridge` (backward compat:
+  `TESTBRIDGE_URL` is registered as serial `'default'` and used until `list_devices` is called).
+- `callTool` signature updated to accept `DeviceRegistry` instead of `FlutterBridge`.
+
+---
+
 ## [1.0.8] - 2026-03-10
 
 ### Changed

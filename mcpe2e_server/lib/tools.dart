@@ -14,7 +14,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+
+import 'device_registry.dart';
 
 // ── HTTP Bridge ───────────────────────────────────────────────────────────────
 
@@ -437,6 +440,72 @@ final List<Map<String, dynamic>> toolDefinitions = [
         'Para verificar valores de datos, prefer inspect_ui (más eficiente en tokens).',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
+
+  // ── Ejecución de comandos ──────────────────────────────────────────────────
+
+  {
+    'name': 'run_command',
+    'description':
+        'Run any shell command, optionally in a working directory. '
+        'Supports any CLI tool: flutter run, flutter build, dart pub get, adb, etc. '
+        'Use background:true for long-running processes (e.g. flutter run) — returns '
+        'immediately with the PID. Use background:false (default) to wait and capture '
+        'stdout/stderr — suitable for finite commands (build, pub get, analyze, etc.). '
+        'Supports pipes, &&, and shell features via sh -c. '
+        'Examples: '
+        '"flutter run -d emulator-5554 --flavor dev" (background:true), '
+        '"flutter pub get" (background:false), '
+        '"dart analyze" (background:false).',
+    'inputSchema': {
+      'type': 'object',
+      'properties': {
+        'command': {
+          'type': 'string',
+          'description': 'Shell command to execute. Supports pipes, &&, env vars, quotes.',
+        },
+        'working_dir': {
+          'type': 'string',
+          'description': 'Absolute path to run the command in (e.g. Flutter project root).',
+        },
+        'background': {
+          'type': 'boolean',
+          'description':
+              'Run detached in background (default: false). '
+              'Set true for long-running processes like flutter run. '
+              'Set false to wait and capture output.',
+        },
+      },
+      'required': ['command'],
+    },
+  },
+
+  // ── Multi-device ───────────────────────────────────────────────────────────
+
+  {
+    'name': 'list_devices',
+    'description': 'Discover connected Android devices and emulators via ADB. '
+        'Automatically sets up port forwarding for each device and checks '
+        'whether mcpe2e is running. Returns the list with their serial IDs, status, '
+        'and the active screen name when available. '
+        'Call this first when testing on multiple devices.',
+    'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
+  },
+  {
+    'name': 'select_device',
+    'description': 'Switch the active target device. All subsequent tool calls '
+        '(tap, input, assert, etc.) will be directed to this device. '
+        'Use list_devices first to see available device IDs.',
+    'inputSchema': {
+      'type': 'object',
+      'properties': {
+        'device_id': {
+          'type': 'string',
+          'description': 'Device serial from list_devices (e.g. "emulator-5554")',
+        },
+      },
+      'required': ['device_id'],
+    },
+  },
 ];
 
 // ── Implementación de herramientas ────────────────────────────────────────────
@@ -457,7 +526,9 @@ final List<Map<String, dynamic>> toolDefinitions = [
 /// La función NO es async: cada rama del switch retorna directamente un
 /// Future<List<...>> para mantener consistencia de tipos en el switch expression.
 Future<List<Map<String, dynamic>>> callTool(
-    FlutterBridge bridge, String name, Map<String, dynamic> args) {
+    DeviceRegistry registry, String name, Map<String, dynamic> args) {
+  final bridge = registry.active; // all 29 existing cases use this — zero changes needed below
+
   // Helper: envolver texto en MCP content array
   List<Map<String, dynamic>> t(String s) => [{'type': 'text', 'text': s}];
 
@@ -622,6 +693,152 @@ Future<List<Map<String, dynamic>>> callTool(
         if (json.containsKey('error')) return t('Error: ${json['error']}');
         return img(json['base64'] as String);
       }(),
+
+    // ── Ejecución de comandos ─────────────────────────────────────────────────
+    'run_command' => () async {
+      final command = args['command'] as String? ?? '';
+      final workingDir = args['working_dir'] as String?;
+      final background = args['background'] as bool? ?? false;
+
+      if (command.isEmpty) return t('Error: command is required');
+
+      if (background) {
+        // Detached — does not block MCP, suitable for flutter run
+        final process = await Process.start(
+          'sh', ['-c', command],
+          workingDirectory: workingDir,
+          mode: ProcessStartMode.detached,
+        );
+        return t(jsonEncode({
+          'ok': true,
+          'pid': process.pid,
+          'command': command,
+          if (workingDir != null) 'working_dir': workingDir,
+          'background': true,
+          'note': 'Process started in background. '
+              'Call list_devices in ~15s to verify the app is ready.',
+        }));
+      } else {
+        // Foreground — waits and captures output
+        final result = await Process.run(
+          'sh', ['-c', command],
+          workingDirectory: workingDir,
+        );
+        return t(jsonEncode({
+          'exit_code': result.exitCode,
+          if ((result.stdout as String).isNotEmpty) 'stdout': result.stdout,
+          if ((result.stderr as String).isNotEmpty) 'stderr': result.stderr,
+        }));
+      }
+    }(),
+
+    // ── Multi-device ──────────────────────────────────────────────────────────
+    'list_devices' => () async {
+      final result = Process.runSync('adb', ['devices']);
+      if (result.exitCode != 0) {
+        return t('Error: adb not found. Install Android SDK platform-tools.');
+      }
+
+      final lines = (result.stdout as String)
+          .split('\n')
+          .skip(1) // skip "List of devices attached"
+          .where((l) => l.trim().isNotEmpty && l.contains('\t'))
+          .toList();
+
+      if (lines.isEmpty) {
+        return t('No devices connected. Connect a device or start an emulator.');
+      }
+
+      // Find next free local port starting from [base], skipping occupied ones.
+      Future<int> nextFreePort(int base) async {
+        var p = base;
+        while (p < 65535) {
+          try {
+            final s = await ServerSocket.bind(InternetAddress.loopbackIPv4, p);
+            await s.close();
+            return p; // port was free
+          } catch (_) {
+            p++; // port occupied, try next
+          }
+        }
+        throw Exception('No free ports available above $base');
+      }
+
+      final devices = <Map<String, dynamic>>[];
+      int nextPort = 7778;
+
+      for (final line in lines) {
+        final serial = line.split('\t').first.trim();
+        final state = line.split('\t').last.trim(); // "device" | "offline"
+
+        if (state != 'device') {
+          devices.add({'serial': serial, 'status': 'offline'});
+          continue;
+        }
+
+        // Find a free local port before forwarding
+        final port = await nextFreePort(nextPort);
+        nextPort = port + 1; // next device starts above this one
+
+        // Forward port
+        Process.runSync('adb', ['-s', serial, 'forward', 'tcp:$port', 'tcp:7777']);
+        final url = 'http://localhost:$port';
+
+        // Ping — confirm mcpe2e is running
+        String status = 'mcpe2e_not_running';
+        String? screen;
+        try {
+          final client = http.Client();
+          final resp = await client
+              .get(Uri.parse('$url/ping'))
+              .timeout(const Duration(seconds: 2));
+          if (resp.statusCode == 200) {
+            status = 'ready';
+            registry.register(serial, url);
+            // Bonus: read active screen from app context
+            try {
+              final ctx = await client
+                  .get(Uri.parse('$url/mcp/context'))
+                  .timeout(const Duration(seconds: 2));
+              final ctxJson = jsonDecode(ctx.body) as Map<String, dynamic>;
+              screen = ctxJson['screen'] as String?;
+            } catch (_) {}
+          }
+          client.close();
+        } catch (_) {}
+
+        devices.add({
+          'serial': serial,
+          'port': port,
+          'url': url,
+          'status': status,
+          if (screen != null) 'screen': screen,
+        });
+      }
+
+      // Auto-select first ready device if active is still 'default'
+      if (registry.activeSerial == 'default') {
+        final first = devices.firstWhere(
+          (d) => d['status'] == 'ready',
+          orElse: () => {},
+        );
+        if (first.isNotEmpty) registry.select(first['serial'] as String);
+      }
+
+      return t(jsonEncode({'devices': devices, 'active': registry.activeSerial}));
+    }(),
+
+    'select_device' => () async {
+      final id = args['device_id'] as String? ?? '';
+      if (id.isEmpty) return t('Error: device_id is required');
+      final ok = registry.select(id);
+      if (!ok) return t('Error: device "$id" not found. Call list_devices first.');
+      return t(jsonEncode({
+        'ok': true,
+        'active_device': id,
+        'url': registry.active.baseUrl,
+      }));
+    }(),
 
     _ => Future.error(Exception('Herramienta desconocida: $name')),
   };
