@@ -1,9 +1,9 @@
 # mcpe2e — AI-driven Flutter E2E Testing
 
-[![version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v2.0.0)
+[![version](https://img.shields.io/badge/version-2.1.0-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v2.1.0)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-mcpe2e lets an AI agent (Claude, Codex, Gemini) control a real Flutter app running on a device or simulator. The agent calls MCP tools in natural language — tap, type, scroll, assert — and those commands reach the live widget tree as real pointer events.
+mcpe2e lets an AI agent (Claude, Codex, Gemini) control a real Flutter app running on a device or simulator. The agent calls MCP tools — tap, type, scroll, assert — and those commands reach the live widget tree as real pointer events.
 
 No UI modifications needed. No test doubles. The app runs as-is.
 
@@ -18,6 +18,7 @@ User → AI Agent (Claude / Codex / Gemini)
               v
       mcpe2e_server  (Dart binary)           installed in ~/.local/bin/
       Translates MCP tool calls → HTTP
+      Exposes workflow skill via MCP Prompts
               |
               |  HTTP  localhost:7778
               |  (ADB forward / iproxy / direct)
@@ -25,7 +26,6 @@ User → AI Agent (Claude / Codex / Gemini)
       mcpe2e  (Flutter library)              dev_dependency in the app
       HTTP server embedded inside the app
       Executes real pointer events via GestureBinding
-              |
               |
               v
       Flutter app on device / simulator
@@ -47,9 +47,10 @@ Two independent components:
 The primary testing workflow requires no widget registration:
 
 1. Call `inspect_ui` — returns the full widget tree with coordinates (`x`, `y`, `w`, `h`) for every element.
-2. Call `tap_at x: <x> y: <y>` — taps at those absolute screen coordinates.
+2. Calculate center: `cx = x + w/2`, `cy = y + h/2`.
+3. Call `tap_at x: <cx> y: <cy>` — taps at those coordinates.
 
-No `McpMetadataKey`, no widget registry, no test wrappers. Widget keys are optional and available when you want named access.
+No `McpMetadataKey`, no widget registry, no wrappers needed.
 
 ---
 
@@ -64,7 +65,7 @@ dev_dependencies:
     git:
       url: https://github.com/JhonaCodes/mcpe2e.git
       path: mcpe2e
-      ref: v2.0.0
+      ref: v2.1.0
 ```
 
 ```bash
@@ -108,7 +109,7 @@ The server starts on port `7777` and is a no-op in release builds.
 flutter run
 ```
 
-`mcpe2e_server` automatically runs `adb forward` for every connected Android device when it starts — no manual port forwarding needed. For iOS, run `iproxy 7778 7777` once before starting the server (automatic iOS forwarding is not yet supported).
+`mcpe2e_server` automatically runs `adb forward` for every connected Android device when it starts — no manual port forwarding needed. For iOS, run `iproxy 7778 7777` once.
 
 Verify the connection:
 
@@ -117,7 +118,17 @@ curl http://localhost:7778/ping
 # {"status":"ok","port":7777}
 ```
 
-### Step 5 — Run your first test
+### Step 5 — Load the workflow skill (optional but recommended)
+
+Before starting any task, the AI agent can request the built-in workflow guide:
+
+```
+prompts/get { "name": "mcpe2e_workflow" }
+```
+
+This delivers a complete interaction guide — core loop, tool decision tree, patterns for forms/dialogs/navigation, error recovery, and agent protocol. Any MCP-compatible client (Claude, Gemini, Codex) can use it.
+
+### Step 6 — Run your first test
 
 With the app running, ask the AI agent:
 
@@ -131,7 +142,7 @@ The agent receives the full widget tree with coordinates. Then:
 tap_at x: 195 y: 420
 ```
 
-Or by widget key if registered:
+Or by widget key if the widget has one registered:
 
 ```
 tap_widget key: auth.login_button
@@ -139,13 +150,13 @@ tap_widget key: auth.login_button
 
 ---
 
-## Available Tools (32)
+## Available Tools (34)
 
 ### Multi-device
 
 | Tool | Description |
 |------|-------------|
-| `list_devices` | Discover all connected Android devices/emulators, auto-forward ports, ping each one, return status and active screen |
+| `list_devices` | Discover all connected Android devices/emulators, auto-forward ports, ping each one |
 | `select_device` | Switch the active device by serial. All subsequent tools target the selected device |
 | `run_command` | Run any shell command (`flutter run`, `adb`, etc.) with optional `working_dir` and `background` mode |
 
@@ -156,6 +167,7 @@ tap_widget key: auth.login_button
 | `get_app_context` | Registered widgets with metadata and capabilities |
 | `list_test_cases` | Alias for `get_app_context` |
 | `inspect_ui` | Full widget tree with values, states, and screen coordinates — no registration needed |
+| `inspect_ui_compact` | Grouped summary (INTERACTIVE / TEXT / OTHER / OVERLAY / LOADING) — use on simple screens to save tokens |
 | `capture_screenshot` | Current screen as PNG image — the agent sees it directly |
 
 ### Gestures
@@ -177,7 +189,7 @@ tap_widget key: auth.login_button
 
 | Tool | Key parameters | Description |
 |------|---------------|-------------|
-| `input_text` | `key`, `text`, `clear_first?` | Type into a TextField |
+| `input_text` | `x`, `y`, `text`, `clear_first?`, `skip_focus_tap?` | Type into a TextField. Use `x`/`y` from `inspect_ui` (preferred) or `key` |
 | `clear_text` | `key` | Clear a TextField |
 | `select_dropdown` | `key`, `value` or `index` | Select a dropdown option |
 | `toggle_widget` | `key` | Toggle a Checkbox, Switch, or Radio |
@@ -189,8 +201,8 @@ tap_widget key: auth.login_button
 |------|---------------|-------------|
 | `show_keyboard` | `key` | Request focus and show virtual keyboard |
 | `hide_keyboard` | — | Dismiss the virtual keyboard |
-| `press_back` | — | Navigate back |
-| `wait` | `duration_ms` | Pause execution (useful after animations) |
+| `press_back` | — | Navigate back — auto-taps the AppBar back button if visible, falls back to system Back event |
+| `wait` | `duration_ms` | Pause execution (useful after animations or network calls) |
 
 ### Assertions
 
@@ -206,83 +218,197 @@ tap_widget key: auth.login_button
 
 ---
 
-## Widget ID Convention
+## Widget Keys (McpMetadataKey)
 
-When using named widget keys, follow the `module.element[.variant]` pattern:
+Widget keys are **optional**. The coordinate-based approach (`inspect_ui` → `tap_at`) works for any widget without touching the app code.
+
+Keys give stable named access to specific widgets — useful for assertions and test scripts that run repeatedly.
+
+### How to register a widget key
+
+```dart
+import 'package:mcpe2e/mcpe2e.dart';
+
+// Button
+ElevatedButton(
+  key: const McpMetadataKey(id: 'auth.login_button'),
+  onPressed: _login,
+  child: const Text('Log in'),
+)
+
+// Text field
+TextField(
+  key: const McpMetadataKey(id: 'auth.email_field'),
+  controller: _emailController,
+)
+
+// Checkbox
+Checkbox(
+  key: const McpMetadataKey(id: 'settings.dark_mode'),
+  value: _darkMode,
+  onChanged: _toggle,
+)
+
+// List (for assert_count)
+ListView(
+  key: const McpMetadataKey(id: 'order.list'),
+  children: _items.map(_buildItem).toList(),
+)
+```
+
+Once registered, the widget appears in `inspect_ui` with a `"key"` field. You can then use key-based tools:
 
 ```
-auth.login_button          Login button
-auth.email_field           Email input
-order.form.price           Price field inside an order form
-order.card.{uuid}          Dynamic card identified at runtime
+tap_widget     key: auth.login_button
+input_text     key: auth.email_field    text: "user@example.com"
+assert_text    key: auth.email_field    text: "user@example.com"
+assert_enabled key: auth.login_button
+assert_count   key: order.list         count: 5
+```
+
+### Key naming convention
+
+Follow the `module.element[.variant]` pattern:
+
+```
+auth.login_button          Login button on the auth screen
+auth.email_field           Email input on the auth screen
+profile.avatar             User avatar image
+order.list                 The orders list
+order.card.{id}            A dynamic card identified at runtime
 settings.dark_mode         Dark mode toggle
 modal.confirm.delete       Confirmation dialog
+sheet.address.submit       Submit button inside a bottom sheet
+nav.drawer                 Navigation drawer
+snackbar.undo              Undo action in a snackbar
 ```
+
+### When to use keys vs coordinates
+
+| Situation | Recommendation |
+|-----------|---------------|
+| One-off task or exploration | Coordinates (`inspect_ui` → `tap_at`) |
+| Repeated test script | Key — more stable across screen rebuilds |
+| Dialog / bottom sheet / drawer | Key recommended — overlay coords shift during open animation |
+| Dynamic list items | Coordinates or `order.card.{id}` with runtime ID |
+| Assertions in CI | Key — decoupled from layout |
 
 ### Recommended: add keys to overlaid widgets
 
-The coordinate-based approach works for most of the app without any widget registration.
-However, we recommend adding `McpMetadataKey` to widgets that appear as layers on top of
-the main screen — dialogs, bottom sheets, drawers, and snackbars. These widgets are
-rendered in a separate overlay entry and their coordinates can shift depending on animation
-state, making coordinate-based taps less reliable.
-
-Suggested keys for overlaid surfaces:
+The coordinate-based approach works for most of the app. However, we recommend adding `McpMetadataKey` to widgets that appear as layers on top of the main screen — dialogs, bottom sheets, drawers, and snackbars. Their coordinates can shift during the open animation, making `tap_at` less reliable.
 
 ```dart
 // Confirmation dialog
 AlertDialog(
   key: const McpMetadataKey(id: 'modal.confirm.delete'),
-  ...
+  title: const Text('Delete item?'),
+  actions: [
+    TextButton(
+      key: const McpMetadataKey(id: 'modal.confirm.cancel'),
+      onPressed: () => Navigator.pop(context),
+      child: const Text('Cancel'),
+    ),
+    ElevatedButton(
+      key: const McpMetadataKey(id: 'modal.confirm.ok'),
+      onPressed: _delete,
+      child: const Text('Delete'),
+    ),
+  ],
 )
 
-// Bottom sheet actions
-ElevatedButton(
-  key: const McpMetadataKey(id: 'sheet.bid.submit'),
-  ...
-)
+// Bottom sheet action button
+showModalBottomSheet(
+  context: context,
+  builder: (_) => ElevatedButton(
+    key: const McpMetadataKey(id: 'sheet.checkout.submit'),
+    onPressed: _submit,
+    child: const Text('Confirm'),
+  ),
+);
 
 // Navigation drawer
 Drawer(
   key: const McpMetadataKey(id: 'nav.drawer'),
+  child: ...,
+)
+
+// Snackbar action
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(
+    action: SnackBarAction(
+      key: const McpMetadataKey(id: 'snackbar.undo'),
+      label: 'Undo',
+      onPressed: _undo,
+    ),
+  ),
+);
+```
+
+This is a suggestion, not a requirement. The agent can still interact with these widgets using `tap_at` and coordinates from `inspect_ui`.
+
+---
+
+## Route Tracking (McpNavigatorObserver)
+
+`get_app_context` reports the current route. For accurate route names, register the observer:
+
+```dart
+// With MaterialApp
+MaterialApp(
+  navigatorObservers: [McpNavigatorObserver.instance],
   ...
 )
 
-// Snackbar action button
-SnackBarAction(
-  key: const McpMetadataKey(id: 'snackbar.undo'),
+// With GoRouter
+GoRouter(
+  observers: [McpNavigatorObserver.instance],
   ...
 )
 ```
 
-This is a suggestion, not a requirement. The agent can still interact with these widgets
-using `tap_at` and coordinates from `inspect_ui` — keys just make those interactions more
-stable and readable in test scripts.
+Without it, the route falls back to a value derived from the screen name.
+
+---
+
+## Text Input in Dialogs
+
+When a dialog or overlay blocks the focus tap, use the ADB fallback:
+
+```
+// 1. Focus the field
+tap_at x: <field cx> y: <field cy>
+
+// 2. Type via ADB (run_command)
+run_command: adb -s <SERIAL> shell input text "your_text"
+
+// Get the serial from:
+run_command: adb devices
+```
+
+This works for auth codes, PINs, and any `TextField` inside an `AlertDialog` or `BottomSheet`.
 
 ---
 
 ## Managing Agents
 
-The installer registers agents interactively. To change which agents have access to mcpe2e tools:
-
 ```bash
 mcpe2e_server setup
 ```
 
-This opens an interactive menu to enable or disable individual agents (Claude Code, Claude Desktop, Codex CLI, Gemini CLI) without reinstalling.
+Interactive menu to enable or disable individual agents (Claude Code, Claude Desktop, Codex CLI, Gemini CLI) without reinstalling.
 
 ---
 
 ## Platform Connectivity
 
-| Platform | Mechanism | Setup command |
-|----------|-----------|---------------|
-| Android | ADB forward (automatic) | None — mcpe2e_server handles it on startup |
+| Platform | Mechanism | Setup |
+|----------|-----------|-------|
+| Android | ADB forward (automatic) | None — `mcpe2e_server` handles it on startup |
 | iOS | iproxy | `iproxy 7778 7777` |
 | macOS / Linux / Windows desktop | Direct localhost | Set `TESTBRIDGE_URL=http://localhost:7777` |
 | Web | Not supported | Flutter Web cannot open TCP sockets |
 
-The `TESTBRIDGE_URL` environment variable tells `mcpe2e_server` where to find the app. Default is `http://localhost:7778`.
+`TESTBRIDGE_URL` tells `mcpe2e_server` where to reach the app. Default: `http://localhost:7778`.
 
 ---
 
@@ -304,8 +430,8 @@ CLAUDE.md            Architecture reference for Claude Code context
 | `mcpe2e/README.md` | Flutter library reference (endpoints, API, production safety) |
 | `mcpe2e_server/README.md` | MCP server setup, configuration, and tool reference |
 | `docs/integration-guide.md` | Step-by-step integration for any Flutter app |
-| `docs/test-flow-example.md` | Complete test walkthrough with Claude |
-| `docs/writing-tests.md` | Standard format for writing tests (script mode, goal mode, templates) |
+| `docs/test-flow-example.md` | Complete test walkthrough |
+| `docs/writing-tests.md` | Script mode and goal mode test formats, templates |
 | `CLAUDE.md` | Architecture reference for Claude Code context |
 
 ---
