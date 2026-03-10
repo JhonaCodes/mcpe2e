@@ -19,6 +19,44 @@ import 'package:http/http.dart' as http;
 
 import 'device_registry.dart';
 
+// ── ADB path resolution ───────────────────────────────────────────────────────
+// The MCP binary runs in a clean environment without the user's shell PATH.
+// Search common Android SDK locations before falling back to bare 'adb'.
+
+String findAdb() {
+  final home = Platform.environment['HOME'] ?? '';
+
+  // 1. Explicit SDK env vars
+  for (final envKey in ['ANDROID_HOME', 'ANDROID_SDK_ROOT']) {
+    final base = Platform.environment[envKey];
+    if (base != null && base.isNotEmpty) {
+      final candidate = '$base/platform-tools/adb';
+      if (File(candidate).existsSync()) return candidate;
+    }
+  }
+
+  // 2. Common macOS / Linux locations
+  final candidates = [
+    '$home/Library/Android/sdk/platform-tools/adb', // macOS default
+    '$home/Android/Sdk/platform-tools/adb',         // Linux default
+    '/usr/local/share/android-sdk/platform-tools/adb',
+    '/opt/android-sdk/platform-tools/adb',
+    '/usr/local/bin/adb',
+    '/opt/homebrew/bin/adb',
+  ];
+  for (final path in candidates) {
+    if (File(path).existsSync()) return path;
+  }
+
+  // 3. Try 'which adb' as last resort
+  try {
+    final which = Process.runSync('which', ['adb']);
+    if (which.exitCode == 0) return (which.stdout as String).trim();
+  } catch (_) {}
+
+  return 'adb'; // will fail with a clear ProcessException
+}
+
 // ── HTTP Bridge ───────────────────────────────────────────────────────────────
 
 /// Cliente HTTP hacia el servidor embebido en la app Flutter.
@@ -35,7 +73,7 @@ class FlutterBridge {
   /// GET [path] → retorna response body como String (forzando UTF-8).
   Future<String> get(String path) async {
     final response = await _client.get(Uri.parse('$baseUrl$path'));
-    return utf8.decode(response.bodyBytes);
+    return response.body;
   }
 
   /// POST [path] con JSON [body] → retorna response body como String (forzando UTF-8).
@@ -45,8 +83,107 @@ class FlutterBridge {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
     );
-    return utf8.decode(response.bodyBytes);
+    return response.body;
   }
+}
+
+// ── Auto-fallback helper ──────────────────────────────────────────────────────
+
+/// Ejecuta [action] usando el key registrado. Si Flutter devuelve un error,
+/// busca el widget por su campo [key] en el árbol vivo y hace tap_at en su
+/// centro como fallback.
+///
+/// Aplica a: toggle_widget, tap_widget, double_tap_widget,
+///           long_press_widget, show_keyboard.
+Future<List<Map<String, dynamic>>> _withCoordFallback({
+  required String key,
+  required Future<String> Function() action,
+  required FlutterBridge bridge,
+}) async {
+  final result = await action();
+  // Success path — return immediately
+  if (!result.contains('Error:') && !result.toLowerCase().contains('falló')) {
+    return [{'type': 'text', 'text': result}];
+  }
+  // Fallback: find widget by key in live tree, tap its center
+  try {
+    final tree = await bridge.get('/mcp/tree');
+    final treeData = jsonDecode(tree) as Map<String, dynamic>;
+    final widgets =
+        (treeData['widgets'] as List? ?? []).cast<Map<String, dynamic>>();
+    final w = widgets.firstWhere((w) => w['key'] == key, orElse: () => {});
+    if (w.isNotEmpty) {
+      final cx = (w['x'] as num) + (w['w'] as num) / 2;
+      final cy = (w['y'] as num) + (w['h'] as num) / 2;
+      final tap =
+          await bridge.get('/action?key=_&type=tapat&dx=$cx&dy=$cy');
+      return [
+        {
+          'type': 'text',
+          'text':
+              'fallback_tap(${cx.toStringAsFixed(1)},${cy.toStringAsFixed(1)}): $tap',
+        }
+      ];
+    }
+  } catch (_) {}
+  return [{'type': 'text', 'text': result}]; // original error if nothing worked
+}
+
+// ── Loading-aware wait helper ─────────────────────────────────────────────────
+
+/// Espera a que no haya ningún indicador de carga visible en el árbol.
+///
+/// Estrategia:
+///   1. Chequea el árbol inmediatamente (cero overhead en pantallas sin loading).
+///   2. Si hay loading, re-chequea cada [pollMs] ms hasta [timeoutMs].
+///   3. Retorna null si quedó idle, o un mensaje de timeout si el loading no desapareció.
+///
+/// Detecta: CircularProgressIndicator, LinearProgressIndicator,
+///          RefreshProgressIndicator, y cualquier widget con "loading": true.
+Future<String?> _waitForIdle(
+  FlutterBridge bridge, {
+  int pollMs = 300,
+  int timeoutMs = 10000,
+}) async {
+  final deadline = DateTime.now().add(Duration(milliseconds: timeoutMs));
+  var firstCheck = true;
+
+  while (DateTime.now().isBefore(deadline)) {
+    try {
+      final tree = await bridge.get('/mcp/tree');
+      final data = jsonDecode(tree) as Map<String, dynamic>;
+      final widgets =
+          (data['widgets'] as List? ?? []).cast<Map<String, dynamic>>();
+      final isLoading = widgets.any((w) => w['loading'] as bool? ?? false);
+      if (!isLoading) return null; // idle — sin carga
+    } catch (_) {
+      return null; // no se puede checar → asumir idle
+    }
+
+    if (firstCheck) {
+      firstCheck = false;
+      // Primera vez que encontró loading: espera corta antes del primer poll
+      await Future.delayed(const Duration(milliseconds: 150));
+    } else {
+      await Future.delayed(Duration(milliseconds: pollMs));
+    }
+  }
+  return 'loading_timeout_${timeoutMs}ms';
+}
+
+/// Ejecuta [action], luego espera a que el UI quede idle (sin loading).
+/// Si hay timeout de loading, agrega una advertencia al resultado.
+Future<List<Map<String, dynamic>>> _thenWaitIdle(
+  Future<List<Map<String, dynamic>>> action,
+  FlutterBridge bridge,
+) async {
+  final result = await action;
+  final warn = await _waitForIdle(bridge);
+  if (warn == null) return result;
+  return [
+    ...result,
+    {'type': 'text', 'text': 'warn: UI still loading after ${warn.replaceAll('loading_timeout_', '')} — consider adding a wait.'},
+  ];
 }
 
 // ── Definiciones de herramientas ──────────────────────────────────────────────
@@ -61,14 +198,17 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'get_app_context',
     'description':
-        'Obtiene el estado actual de la app: pantalla activa y todos los widgets '
-        'registrados con sus IDs, tipos y acciones disponibles (capabilities). '
-        'Llama esto primero para saber qué hay en pantalla antes de ejecutar acciones.',
+        'Obtiene el estado actual de la app: pantalla activa y widgets que tienen '
+        'McpMetadataKey registrada (campo "key" presente). '
+        'Úsalo para descubrir qué keys están activas ANTES de ejecutar herramientas key-based. '
+        'Para ver TODOS los widgets con coordenadas x/y, usa inspect_ui. '
+        'Flujo recomendado: get_app_context (saber qué keys hay) → '
+        'inspect_ui (coordenadas de cualquier widget) → acciones.',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
   {
     'name': 'list_test_cases',
-    'description': 'Alias de get_app_context. Lista los widgets registrados en la app.',
+    'description': 'Alias de get_app_context. Lista los widgets registrados con McpMetadataKey.',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
 
@@ -123,14 +263,19 @@ final List<Map<String, dynamic>> toolDefinitions = [
   },
   {
     'name': 'scroll_widget',
-    'description': 'Scroll de un widget scrollable (ListView, SingleChildScrollView, etc.).',
+    'description':
+        'Scroll de un widget scrollable (ListView, SingleChildScrollView, etc.). '
+        'key es opcional — si se omite, el scroll se aplica al widget scrollable activo en pantalla. '
+        'amount/distance: píxeles a desplazar (default: 300).',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget scrollable'},
+        'key': {'type': 'string', 'description': 'ID del widget scrollable (opcional)'},
         'direction': {'type': 'string', 'enum': ['up', 'down', 'left', 'right']},
+        'amount': {'type': 'number', 'description': 'Píxeles a desplazar (alias de distance, default: 300)'},
+        'distance': {'type': 'number', 'description': 'Píxeles a desplazar (default: 300)'},
       },
-      'required': ['key', 'direction'],
+      'required': ['direction'],
     },
   },
   {
@@ -169,15 +314,32 @@ final List<Map<String, dynamic>> toolDefinitions = [
 
   {
     'name': 'input_text',
-    'description': 'Escribe texto en un TextField o TextFormField.',
+    'description':
+        'Escribe texto en un TextField o TextFormField. '
+        'Modo coordenadas (PREFERIDO, siempre disponible): proporciona x/y del campo '
+        'obtenidos de inspect_ui — enfoca el campo por coordenadas y usa ADB para escribir. '
+        'Modo key (solo si el widget tiene campo "key" en inspect_ui): proporciona key. '
+        'Si se dan x/y, se usan las coordenadas aunque también se pase key. '
+        'Flujo: inspect_ui → toma x/y del campo → input_text x: ... y: ... text: "..." '
+        'IMPORTANTE: si inspect_ui muestra "auto_focus": true en el campo, '
+        'usa skip_focus_tap: true — el teclado ya está abierto y tap_at lo cerraría.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del campo de texto'},
+        'x': {'type': 'number', 'description': 'Coordenada X del campo (de inspect_ui) — PREFERIDO'},
+        'y': {'type': 'number', 'description': 'Coordenada Y del campo (de inspect_ui) — PREFERIDO'},
+        'key': {'type': 'string', 'description': 'ID del campo (solo si tiene campo "key" en inspect_ui)'},
         'text': {'type': 'string', 'description': 'Texto a escribir'},
         'clear_first': {'type': 'boolean', 'description': 'Limpiar campo antes de escribir (default: false)'},
+        'skip_focus_tap': {
+          'type': 'boolean',
+          'description':
+              'Omitir el tap de foco antes de escribir (default: false). '
+              'Usar true cuando el campo tiene autoFocus: true (visible como "auto_focus": true en inspect_ui) — '
+              'el teclado ya está abierto; hacer tap primero lo cerraría.',
+        },
       },
-      'required': ['key', 'text'],
+      'required': ['text'],
     },
   },
   {
@@ -208,13 +370,20 @@ final List<Map<String, dynamic>> toolDefinitions = [
   },
   {
     'name': 'toggle_widget',
-    'description': 'Activa o desactiva un Checkbox, Switch o Radio button.',
+    'description':
+        'Activa o desactiva un Checkbox, Switch o Radio button. '
+        'Modo coordenadas (PREFERIDO para dialogs/overlays): proporciona x/y '
+        'del control (de inspect_ui) — simula tap real que activa gestos del widget. '
+        'Modo key: solo si tiene campo "key" en inspect_ui. '
+        'Si x/y presentes, se usan las coordenadas aunque también haya key.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del Checkbox, Switch o Radio'},
+        'x': {'type': 'number', 'description': 'Coordenada X del control (de inspect_ui) — PREFERIDO'},
+        'y': {'type': 'number', 'description': 'Coordenada Y del control (de inspect_ui) — PREFERIDO'},
+        'key': {'type': 'string', 'description': 'ID del widget (si tiene campo "key" en inspect_ui)'},
       },
-      'required': ['key'],
+      'required': [],
     },
   },
   {
@@ -242,13 +411,14 @@ final List<Map<String, dynamic>> toolDefinitions = [
     'name': 'press_back',
     'description':
         'Navega atrás en el stack de navegación. '
-        'Equivale al botón Back de Android o al gesto de back de iOS.',
+        'Equivale al botón Back de Android o al gesto de back de iOS. '
+        'key es opcional — no se necesita un widget específico para volver atrás.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID de cualquier widget en la pantalla actual'},
+        'key': {'type': 'string', 'description': 'ID de cualquier widget (opcional)'},
       },
-      'required': ['key'],
+      'required': [],
     },
   },
   {
@@ -422,12 +592,20 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'inspect_ui',
     'description':
-        'Recorre el widget tree completo de la app y retorna todos los widgets '
-        'con datos: textos visibles, valores de campos, estados de botones, '
-        'checkboxes, switches, slider values, etc. '
-        'No requiere widgets registrados — funciona con cualquier widget. '
-        'Usar para: verificar valores en pantalla, detectar estados incorrectos, '
-        'identificar qué hay visible antes de ejecutar acciones.',
+        'Recorre el widget tree completo y retorna TODOS los widgets con: '
+        'texto visible, x/y/w/h (coordenadas en logical pixels), tipo, estado. '
+        'Widgets con McpMetadataKey tienen además un campo "key" — '
+        'ese campo indica que la herramienta puede usarse con key-based tools (assert_*, tap_widget, etc.). '
+        'Sin campo "key": usa coordenadas → tap_at, input_text con x/y. '
+        'Con campo "key": puedes usar tanto coordenadas como el key. '
+        'SIEMPRE llama inspect_ui antes de input_text para obtener las coordenadas x/y del campo. '
+        'Widgets dentro de dialogs, BottomSheets o AlertDialogs tienen "overlay": true — '
+        'identifica qué widgets pertenecen al diálogo activo. '
+        'TextFields con "auto_focus": true ya tienen el foco al aparecer — '
+        'usa input_text con skip_focus_tap: true para no interrumpir el teclado. '
+        'CircularProgressIndicator, LinearProgressIndicator y RefreshProgressIndicator '
+        'tienen "loading": true — si aparecen, la UI está ocupada; '
+        'las herramientas de acción esperan automáticamente hasta que desaparezcan.',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
   {
@@ -547,14 +725,37 @@ Future<List<Map<String, dynamic>>> callTool(
 
     // ── Gestos básicos ────────────────────────────────────────────────────────
     'tap_widget' =>
-      bridge.get('/action?key=${k(args['key'])}').then(t),
+      _thenWaitIdle(
+        _withCoordFallback(
+          key: args['key'] as String,
+          action: () => bridge.get('/action?key=${k(args['key'] as String)}'),
+          bridge: bridge,
+        ),
+        bridge,
+      ),
 
     'double_tap_widget' =>
-      bridge.get('/action?key=${k(args['key'])}&type=doubletap').then(t),
+      _thenWaitIdle(
+        _withCoordFallback(
+          key: args['key'] as String,
+          action: () =>
+              bridge.get('/action?key=${k(args['key'] as String)}&type=doubletap'),
+          bridge: bridge,
+        ),
+        bridge,
+      ),
 
     'long_press_widget' => () {
         final ms = args['duration_ms'] as int? ?? 500;
-        return bridge.get('/action?key=${k(args['key'])}&type=longpress&duration=$ms').then(t);
+        return _thenWaitIdle(
+          _withCoordFallback(
+            key: args['key'] as String,
+            action: () => bridge.get(
+                '/action?key=${k(args['key'] as String)}&type=longpress&duration=$ms'),
+            bridge: bridge,
+          ),
+          bridge,
+        );
       }(),
 
     'swipe_widget' => () {
@@ -565,27 +766,128 @@ Future<List<Map<String, dynamic>>> callTool(
         return bridge.get('/action?key=$key&type=swipe&direction=$dir$q').then(t);
       }(),
 
-    'scroll_widget' => () {
+    'scroll_widget' => () async {
         final dir = args['direction'] as String;
-        return bridge.get('/action?key=${k(args['key'])}&type=scroll&direction=$dir').then(t);
+        final rawKey = args['key'] as String?;
+        // accept both 'amount' and 'distance' as aliases
+        final dist = ((args['amount'] as num?) ?? (args['distance'] as num?) ?? 300).toDouble();
+
+        // No key → ADB swipe directly (no registered widget needed)
+        if (rawKey == null || rawKey.isEmpty) {
+          // Standard portrait screen center — swipe from/to based on direction
+          // "down" = content scrolls down = finger swipes up (start low, end high)
+          const cx = 540.0;
+          const cy = 960.0;
+          double x1 = cx, y1 = cy, x2 = cx, y2 = cy;
+          switch (dir) {
+            case 'down':  y1 = cy + dist / 2; y2 = cy - dist / 2;
+            case 'up':    y1 = cy - dist / 2; y2 = cy + dist / 2;
+            case 'right': x1 = cx + dist / 2; x2 = cx - dist / 2;
+            case 'left':  x1 = cx - dist / 2; x2 = cx + dist / 2;
+          }
+          final adb = findAdb();
+          final serial = registry.activeSerial;
+          final base = serial == 'default' ? <String>[] : ['-s', serial];
+          final r = Process.runSync(
+              adb, [...base, 'shell', 'input', 'swipe',
+                '${x1.round()}', '${y1.round()}',
+                '${x2.round()}', '${y2.round()}', '600']);
+          return t(jsonEncode({
+            'ok': r.exitCode == 0,
+            'method': 'adb_swipe',
+            'direction': dir,
+            'distance': dist,
+            if (r.exitCode != 0) 'stderr': r.stderr,
+          }));
+        }
+
+        // Key provided → try Flutter bridge
+        final q = '&distance=$dist';
+        return _thenWaitIdle(
+          bridge.get('/action?key=${k(rawKey)}&type=scroll&direction=$dir$q').then(t),
+          bridge,
+        );
       }(),
 
     'tap_at' => () {
         final x = args['x'] as num;
         final y = args['y'] as num;
-        return bridge.get('/action?key=_&type=tapat&dx=$x&dy=$y').then(t);
+        return _thenWaitIdle(
+          bridge.get('/action?key=_&type=tapat&dx=$x&dy=$y').then(t),
+          bridge,
+        );
       }(),
 
     'tap_by_label' => () {
         final label = Uri.encodeQueryComponent(args['label'] as String);
-        return bridge.get('/action?key=_&type=tapbylabel&label=$label').then(t);
+        return _thenWaitIdle(
+          bridge.get('/action?key=_&type=tapbylabel&label=$label').then(t),
+          bridge,
+        );
       }(),
 
     // ── Input ─────────────────────────────────────────────────────────────────
-    'input_text' => () {
-        final text = Uri.encodeQueryComponent(args['text'] as String);
-        final clear = (args['clear_first'] as bool? ?? false) ? '&clearFirst=true' : '';
-        return bridge.get('/action?key=${k(args['key'])}&type=textinput&text=$text$clear').then(t);
+    'input_text' => () async {
+        final text = args['text'] as String;
+        final clear = args['clear_first'] as bool? ?? false;
+        final x = args['x'] as num?;
+        final y = args['y'] as num?;
+        final key = args['key'] as String?;
+
+        // Coordinate-based (preferred): tap to focus + ADB to type
+        if (x != null && y != null) {
+          final skipTap = args['skip_focus_tap'] as bool? ?? false;
+
+          if (!skipTap) {
+            // Focus field by tapping at coordinates
+            await bridge.get('/action?key=_&type=tapat&dx=$x&dy=$y');
+            await Future.delayed(const Duration(milliseconds: 300));
+          }
+
+          if (clear) {
+            // KEYCODE_DEL repeated — avoids coordinate-shift from triple-tap
+            final adb = findAdb();
+            final serial = registry.activeSerial;
+            final base = serial == 'default' ? <String>[] : ['-s', serial];
+            for (int i = 0; i < 8; i++) {
+              Process.runSync(
+                  adb, [...base, 'shell', 'input', 'keyevent', 'KEYCODE_DEL']);
+            }
+            await Future.delayed(const Duration(milliseconds: 200));
+          }
+
+          final adb = findAdb();
+          final serial = registry.activeSerial;
+          final base = serial == 'default' ? <String>[] : ['-s', serial];
+          final result =
+              Process.runSync(adb, [...base, 'shell', 'input', 'text', text]);
+          if (result.exitCode != 0) {
+            return t('Error: ADB input text failed. ${result.stderr}');
+          }
+          return await _thenWaitIdle(
+            Future.value(t(jsonEncode({
+              'ok': true,
+              'method': 'coordinates',
+              'x': x,
+              'y': y,
+              if (skipTap) 'skipped_focus_tap': true,
+            }))),
+            bridge,
+          );
+        }
+
+        // Key-based fallback (only when widget has McpMetadataKey)
+        if (key == null || key.isEmpty) {
+          return t('Error: provide x/y coordinates (from inspect_ui) or a registered key.');
+        }
+        final encodedText = Uri.encodeQueryComponent(text);
+        final clearParam = clear ? '&clearFirst=true' : '';
+        return _thenWaitIdle(
+          bridge
+              .get('/action?key=${k(key)}&type=textinput&text=$encodedText$clearParam')
+              .then(t),
+          bridge,
+        );
       }(),
 
     'clear_text' =>
@@ -600,8 +902,38 @@ Future<List<Map<String, dynamic>>> callTool(
         return bridge.get('/action?key=$key&type=selectdropdown&dropdownValue=$val').then(t);
       }(),
 
-    'toggle_widget' =>
-      bridge.get('/action?key=${k(args['key'])}&type=toggle').then(t),
+    'toggle_widget' => () async {
+        final x = args['x'] as num?;
+        final y = args['y'] as num?;
+        final key = args['key'] as String?;
+
+        // Coordinate mode (preferred — real pointer event triggers gestures natively)
+        if (x != null && y != null) {
+          return _thenWaitIdle(
+            bridge.get('/action?key=_&type=tapat&dx=$x&dy=$y').then(
+                (r) => [{'type': 'text', 'text': r}]),
+            bridge,
+          );
+        }
+
+        // Key mode with auto-fallback
+        if (key == null || key.isEmpty) {
+          return [
+            {
+              'type': 'text',
+              'text': 'Error: provide x/y coordinates or a registered key.',
+            }
+          ];
+        }
+        return _thenWaitIdle(
+          _withCoordFallback(
+            key: key,
+            action: () => bridge.get('/action?key=${k(key)}&type=toggle'),
+            bridge: bridge,
+          ),
+          bridge,
+        );
+      }(),
 
     'set_slider_value' => () {
         final val = args['value'] as num;
@@ -612,8 +944,13 @@ Future<List<Map<String, dynamic>>> callTool(
     'hide_keyboard' =>
       bridge.get('/action?key=_keyboard&type=hidekeyboard').then(t),
 
-    'press_back' =>
-      bridge.get('/action?key=${k(args['key'])}&type=pressback').then(t),
+    'press_back' => () {
+        final key = args['key'] as String? ?? '_';
+        return _thenWaitIdle(
+          bridge.get('/action?key=${k(key)}&type=pressback').then(t),
+          bridge,
+        );
+      }(),
 
     'scroll_until_visible' => () {
         final key = k(args['key'] as String);
@@ -681,7 +1018,12 @@ Future<List<Map<String, dynamic>>> callTool(
       }(),
 
     'show_keyboard' =>
-      bridge.get('/action?key=${k(args['key'])}&type=showkeyboard').then(t),
+      _withCoordFallback(
+        key: args['key'] as String,
+        action: () =>
+            bridge.get('/action?key=${k(args['key'] as String)}&type=showkeyboard'),
+        bridge: bridge,
+      ),
 
     // ── Inspección del UI ──────────────────────────────────────────────────────
     'inspect_ui' =>
@@ -734,9 +1076,11 @@ Future<List<Map<String, dynamic>>> callTool(
 
     // ── Multi-device ──────────────────────────────────────────────────────────
     'list_devices' => () async {
-      final result = Process.runSync('adb', ['devices']);
+      final adb = findAdb();
+      final result = Process.runSync(adb, ['devices']);
       if (result.exitCode != 0) {
-        return t('Error: adb not found. Install Android SDK platform-tools.');
+        return t('Error: adb not found. Tried PATH and common SDK locations. '
+            'Set ANDROID_HOME or install Android SDK platform-tools.');
       }
 
       final lines = (result.stdout as String)
@@ -781,7 +1125,7 @@ Future<List<Map<String, dynamic>>> callTool(
         nextPort = port + 1; // next device starts above this one
 
         // Forward port
-        Process.runSync('adb', ['-s', serial, 'forward', 'tcp:$port', 'tcp:7777']);
+        Process.runSync(adb, ['-s', serial, 'forward', 'tcp:$port', 'tcp:7777']);
         final url = 'http://localhost:$port';
 
         // Ping — confirm mcpe2e is running

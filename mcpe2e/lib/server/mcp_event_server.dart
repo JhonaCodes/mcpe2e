@@ -453,11 +453,13 @@ class McpEventServer {
     String contentType,
     String body,
   ) {
+    final bytes = utf8.encode(body); // always UTF-8, never Latin-1
     req.response
       ..statusCode = status
-      ..headers.contentType = ContentType.parse(contentType)
-      ..write(body)
-      ..close();
+      ..headers.contentType = ContentType.parse('$contentType; charset=utf-8')
+      ..headers.contentLength = bytes.length
+      ..add(bytes);
+    req.response.close();
   }
 
   // ── Startup log ───────────────────────────────────────────────────────────

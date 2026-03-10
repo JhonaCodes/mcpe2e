@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,6 +12,10 @@ class McpServer {
   McpServer(String baseUrl) : registry = DeviceRegistry(baseUrl);
 
   Future<void> run() async {
+    // Auto-discover connected Android devices on startup (non-blocking).
+    // Sets up ADB port-forwarding automatically — no manual setup needed.
+    unawaited(callTool(registry, 'list_devices', {}).catchError((_) => <Map<String, dynamic>>[]));
+
     await for (final line in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
       final trimmed = line.trim();
       if (trimmed.isEmpty) continue;

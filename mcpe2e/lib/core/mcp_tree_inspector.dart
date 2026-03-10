@@ -17,8 +17,12 @@
 // Widgets incluidos (tienen datos o estado relevante para tests):
 //   Text, RichText(*), TextField, TextFormField, ElevatedButton, TextButton,
 //   OutlinedButton, FilledButton, IconButton, Checkbox, Switch, Radio, Slider,
-//   Image, AppBar, AlertDialog, SnackBar, DropdownButtonFormField
+//   Image, AppBar, AlertDialog, BottomSheet, SnackBar, DropdownButtonFormField,
+//   CircularProgressIndicator, LinearProgressIndicator, RefreshProgressIndicator
 //   (*) RichText omitido si es descendiente directo de Text (evita duplicados)
+//
+// Loading widgets exponen "loading": true para que el servidor MCP sepa
+// que debe esperar antes de continuar con la siguiente acción.
 //
 // Widgets excluidos (layout sin datos propios):
 //   Padding, SizedBox, Spacer, Align, Center, Expanded, Flexible, Positioned,
@@ -87,33 +91,54 @@ class McpTreeInspector {
   /// Extrae datos del widget si es interesante y siempre continúa
   /// la recursión en los hijos, excepto para widgets "hoja" cuya
   /// información interna ya fue capturada (TextField, EditableText).
+  /// [inOverlay] se propaga a todos los descendientes de un contenedor modal.
   static void _walk(
     Element element,
     int depth,
-    List<Map<String, dynamic>> result,
-  ) {
+    List<Map<String, dynamic>> result, {
+    bool inOverlay = false,
+  }) {
     final widget = element.widget;
 
+    // Detect entry into an overlay/dialog layer
+    final enteringOverlay = !inOverlay && _isOverlayContainer(widget);
+    final childInOverlay = inOverlay || enteringOverlay;
+
     // Extraer datos si es un widget con información relevante
-    final entry = _extract(widget, element, depth);
+    final entry = _extract(widget, element, depth, inOverlay: childInOverlay);
     if (entry != null) result.add(entry);
 
     // Siempre continuar recursión, excepto en nodos cuya info
     // interna ya extrajimos (evita entradas duplicadas)
     final skipChildren = widget is EditableText; // interno de TextField
     if (!skipChildren) {
-      element.visitChildElements((child) => _walk(child, depth + 1, result));
+      element.visitChildElements(
+        (child) => _walk(child, depth + 1, result, inOverlay: childInOverlay),
+      );
     }
+  }
+
+  /// Detecta si un widget es la raíz de una capa modal/overlay.
+  static bool _isOverlayContainer(Widget w) {
+    if (w is AlertDialog || w is Dialog || w is SimpleDialog ||
+        w is BottomSheet || w is SnackBar) {
+      return true;
+    }
+    // Private Flutter types — detect by runtime name
+    final t = w.runtimeType.toString();
+    return t == '_ModalScope' || t == '_ModalBarrier';
   }
 
   // ── Extracción de datos ────────────────────────────────────────────────────
 
   /// Retorna un mapa con los datos del widget, o null si no es interesante.
+  /// [inOverlay] indica que este widget pertenece a un diálogo/overlay activo.
   static Map<String, dynamic>? _extract(
     Widget widget,
     Element element,
-    int depth,
-  ) {
+    int depth, {
+    bool inOverlay = false,
+  }) {
     // Obtener posición en pantalla (null si no está montado o sin renderObject)
     final pos = _position(element);
 
@@ -128,7 +153,8 @@ class McpTreeInspector {
     if (widget is Text) {
       final value = widget.data ?? widget.textSpan?.toPlainText();
       if (value == null || value.isEmpty) return null;
-      return _entry('Text', depth, pos, mcpKey, extra: {'value': value});
+      return _entry('Text', depth, pos, mcpKey,
+          extra: {'value': value}, inOverlay: inOverlay);
     }
 
     // RichText: solo si no es hijo directo de un Text (evita duplicados).
@@ -152,7 +178,9 @@ class McpTreeInspector {
           if (value != null && value.isNotEmpty) 'value': value,
           'hint': ?hint,
           'enabled': enabled,
+          if (widget.autofocus) 'auto_focus': true,
         },
+        inOverlay: inOverlay,
       );
     }
 
@@ -163,12 +191,15 @@ class McpTreeInspector {
     if (widget is TextFormField) {
       if (mcpKey == null) return null; // no extra info vs inner TextField
       final value = _findEditableTextValue(element);
+      // auto_focus is not directly accessible on TextFormField — it's read from
+      // the internal TextField when the walk reaches it.
       return _entry(
         'TextFormField',
         depth,
         pos,
         mcpKey,
         extra: {if (value != null && value.isNotEmpty) 'value': value},
+        inOverlay: inOverlay,
       );
     }
 
@@ -182,6 +213,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'label': ?label, 'enabled': enabled},
+        inOverlay: inOverlay,
       );
     }
 
@@ -194,6 +226,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'label': ?label, 'enabled': enabled},
+        inOverlay: inOverlay,
       );
     }
 
@@ -206,6 +239,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'label': ?label, 'enabled': enabled},
+        inOverlay: inOverlay,
       );
     }
 
@@ -218,6 +252,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'label': ?label, 'enabled': enabled},
+        inOverlay: inOverlay,
       );
     }
 
@@ -230,6 +265,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'tooltip': ?tooltip, 'enabled': enabled},
+        inOverlay: inOverlay,
       );
     }
 
@@ -241,6 +277,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'value': widget.value, 'enabled': widget.onChanged != null},
+        inOverlay: inOverlay,
       );
     }
 
@@ -251,6 +288,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'value': widget.value, 'enabled': widget.onChanged != null},
+        inOverlay: inOverlay,
       );
     }
 
@@ -266,6 +304,7 @@ class McpTreeInspector {
           'selected': widget.value == widget.groupValue,
           'enabled': widget.onChanged != null,
         },
+        inOverlay: inOverlay,
       );
     }
 
@@ -282,6 +321,7 @@ class McpTreeInspector {
           'max': widget.max,
           'enabled': widget.onChanged != null,
         },
+        inOverlay: inOverlay,
       );
     }
 
@@ -293,6 +333,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'value': ?widget.initialValue?.toString()},
+        inOverlay: inOverlay,
       );
     }
 
@@ -306,6 +347,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'semanticLabel': ?label},
+        inOverlay: inOverlay,
       );
     }
 
@@ -314,7 +356,8 @@ class McpTreeInspector {
       final titleText = widget.title is Text
           ? (widget.title as Text).data
           : _findTextInSubtree(element);
-      return _entry('AppBar', depth, pos, mcpKey, extra: {'title': ?titleText});
+      return _entry('AppBar', depth, pos, mcpKey,
+          extra: {'title': ?titleText}, inOverlay: inOverlay);
     }
 
     // ── Diálogos / overlays ────────────────────────────────────────────────
@@ -328,6 +371,18 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'title': ?titleText, 'visible': true},
+        inOverlay: true,  // AlertDialog is always an overlay
+      );
+    }
+
+    if (widget is BottomSheet) {
+      return _entry(
+        'BottomSheet',
+        depth,
+        pos,
+        mcpKey,
+        extra: {'visible': true},
+        inOverlay: true,  // BottomSheet is always an overlay
       );
     }
 
@@ -341,6 +396,43 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'content': ?content, 'visible': true},
+        inOverlay: true,  // SnackBar is always an overlay
+      );
+    }
+
+    // ── Indicadores de carga ───────────────────────────────────────────────
+    // "loading": true permite al servidor MCP detectar que la UI está ocupada
+    // y esperar antes de continuar con la siguiente acción.
+    if (widget is CircularProgressIndicator) {
+      return _entry(
+        'CircularProgressIndicator',
+        depth,
+        pos,
+        mcpKey,
+        extra: {'loading': true},
+        inOverlay: inOverlay,
+      );
+    }
+
+    if (widget is LinearProgressIndicator) {
+      return _entry(
+        'LinearProgressIndicator',
+        depth,
+        pos,
+        mcpKey,
+        extra: {'loading': true},
+        inOverlay: inOverlay,
+      );
+    }
+
+    if (widget is RefreshProgressIndicator) {
+      return _entry(
+        'RefreshProgressIndicator',
+        depth,
+        pos,
+        mcpKey,
+        extra: {'loading': true},
+        inOverlay: inOverlay,
       );
     }
 
@@ -350,14 +442,24 @@ class McpTreeInspector {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   /// Construye una entrada del resultado con los campos estándar.
+  /// [inOverlay] = true añade `"overlay": true` para indicar que el widget
+  /// pertenece a un diálogo, BottomSheet o AlertDialog activo.
   static Map<String, dynamic> _entry(
     String type,
     int depth,
     Map<String, double>? pos,
     String? key, {
     Map<String, dynamic> extra = const {},
+    bool inOverlay = false,
   }) {
-    return {'type': type, 'depth': depth, 'key': ?key, ...extra, ...?pos};
+    return {
+      'type': type,
+      'depth': depth,
+      'key': ?key,
+      if (inOverlay) 'overlay': true,
+      ...extra,
+      ...?pos,
+    };
   }
 
   /// Obtiene la posición y tamaño del widget en coordenadas de pantalla.
