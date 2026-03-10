@@ -23,7 +23,7 @@ dev_dependencies:
   mcpe2e:
     git:
       url: https://github.com/JhonaCodes/mcpe2e.git
-      ref: v1.0.7
+      ref: v1.1.6
       path: mcpe2e
 ```
 
@@ -74,18 +74,16 @@ The server listens on port **7777** inside the device.
 
 ## Step 4: Connect the device
 
-Forward the device port to your machine so `mcpe2e_server` can reach it:
+**Android — automatic.** `mcpe2e_server` automatically runs `adb forward tcp:7778 tcp:7777` for every connected device at startup. No manual step needed.
 
+**iOS:**
 ```bash
-# Android
-adb forward tcp:7778 tcp:7777
-
-# iOS
 iproxy 7778 7777
-
-# Desktop app running on the same machine — no forwarding needed
-# Use TESTBRIDGE_URL=http://localhost:7777
 ```
+
+**Desktop:** No forwarding needed. Set `TESTBRIDGE_URL=http://localhost:7777` in your agent config.
+
+Proceed to Step 5 — the server and port forwarding are ready.
 
 ---
 

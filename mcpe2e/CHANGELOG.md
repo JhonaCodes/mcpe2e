@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.1.6] - 2026-03-10
+
+### Changed
+- Version bump to 1.1.6 (sync with mcpe2e_server v1.1.6 — auto ADB forwarding + device watcher).
+
+---
+
+## [1.1.5] - 2026-03-10
+
+### Changed
+- Version bump to 1.1.5 (sync with mcpe2e_server v1.1.5 — OpenCode agent support).
+
+---
+
+## [1.1.4] - 2026-03-10
+
+### Changed
+- Version bump to 1.1.4 (sync with mcpe2e_server v1.1.4 — dialog interaction, coordinate
+  gestures, loading-aware wait).
+
+---
+
 ## [1.1.2] - 2026-03-10
 
 ### Changed

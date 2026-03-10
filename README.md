@@ -1,6 +1,6 @@
 # mcpe2e — AI-driven Flutter E2E Testing
 
-[![version](https://img.shields.io/badge/version-1.0.7-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v1.0.7)
+[![version](https://img.shields.io/badge/version-1.1.6-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v1.1.6)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 mcpe2e lets an AI agent (Claude, Codex, Gemini) control a real Flutter app running on a device or simulator. The agent calls MCP tools in natural language — tap, type, scroll, assert — and those commands reach the live widget tree as real pointer events.
@@ -64,7 +64,7 @@ dev_dependencies:
     git:
       url: https://github.com/JhonaCodes/mcpe2e.git
       path: mcpe2e
-      ref: v1.0.7
+      ref: v1.1.6
 ```
 
 ```bash
@@ -102,18 +102,13 @@ void main() async {
 
 The server starts on port `7777` and is a no-op in release builds.
 
-### Step 4 — Connect the device
+### Step 4 — Run the app
 
 ```bash
-# Android
-adb forward tcp:7778 tcp:7777
-
-# iOS (requires usbmuxd: brew install usbmuxd)
-iproxy 7778 7777
-
-# Desktop — no forwarding needed
-# Set TESTBRIDGE_URL=http://localhost:7777 in the agent config
+flutter run
 ```
+
+`mcpe2e_server` automatically runs `adb forward` for every connected Android device when it starts — no manual port forwarding needed. For iOS, run `iproxy 7778 7777` once before starting the server (automatic iOS forwarding is not yet supported).
 
 Verify the connection:
 
@@ -124,7 +119,7 @@ curl http://localhost:7778/ping
 
 ### Step 5 — Run your first test
 
-With the app running and the port forwarded, ask the AI agent:
+With the app running, ask the AI agent:
 
 ```
 inspect_ui
@@ -144,7 +139,15 @@ tap_widget key: auth.login_button
 
 ---
 
-## Available Tools (29)
+## Available Tools (32)
+
+### Multi-device
+
+| Tool | Description |
+|------|-------------|
+| `list_devices` | Discover all connected Android devices/emulators, auto-forward ports, ping each one, return status and active screen |
+| `select_device` | Switch the active device by serial. All subsequent tools target the selected device |
+| `run_command` | Run any shell command (`flutter run`, `adb`, etc.) with optional `working_dir` and `background` mode |
 
 ### Context and Inspection
 
@@ -234,7 +237,7 @@ This opens an interactive menu to enable or disable individual agents (Claude Co
 
 | Platform | Mechanism | Setup command |
 |----------|-----------|---------------|
-| Android | ADB forward | `adb forward tcp:7778 tcp:7777` |
+| Android | ADB forward (automatic) | None — mcpe2e_server handles it on startup |
 | iOS | iproxy | `iproxy 7778 7777` |
 | macOS / Linux / Windows desktop | Direct localhost | Set `TESTBRIDGE_URL=http://localhost:7777` |
 | Web | Not supported | Flutter Web cannot open TCP sockets |

@@ -1,6 +1,6 @@
 # mcpe2e — Flutter Library
 
-[![version](https://img.shields.io/badge/version-1.0.7-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v1.0.7)
+[![version](https://img.shields.io/badge/version-1.1.6-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v1.1.6)
 
 mcpe2e is a Flutter library that embeds a lightweight HTTP server inside your app. When an AI agent (Claude, Codex, Gemini) calls an MCP tool, `mcpe2e_server` translates it to an HTTP request that reaches this server, which then executes the corresponding gesture or assertion on the live widget tree.
 
@@ -30,7 +30,7 @@ dev_dependencies:
     git:
       url: https://github.com/JhonaCodes/mcpe2e.git
       path: mcpe2e
-      ref: v1.0.7
+      ref: v1.1.6
 ```
 
 ```bash
@@ -230,11 +230,11 @@ The library listens on port `7777` on the device. The `mcpe2e_server` on your ma
 
 | Platform | Command |
 |----------|---------|
-| Android | `adb forward tcp:7778 tcp:7777` |
+| Android | Automatic — `mcpe2e_server` runs `adb forward` on startup |
 | iOS | `iproxy 7778 7777` (requires `brew install usbmuxd`) |
 | Desktop | No forwarding — set `TESTBRIDGE_URL=http://localhost:7777` |
 
-`McpConnectivity.setup()` runs automatically inside `McpEventServer.start()` and configures platform-specific forwarding where applicable.
+`McpConnectivity.setup()` runs automatically inside `McpEventServer.start()` and configures platform-specific forwarding where applicable. On Android, `mcpe2e_server` also handles `adb forward` automatically at startup.
 
 Verify the connection after forwarding:
 
@@ -249,7 +249,7 @@ curl http://localhost:7778/ping
 
 | Problem | Solution |
 |---------|----------|
-| `/ping` times out | Confirm the app is running in debug mode. Re-run `adb forward` after the app starts. |
+| `/ping` times out | Confirm the app is running in debug mode. `mcpe2e_server` auto-runs `adb forward` — if it fails, check `adb devices`. |
 | `adb forward` fails | Run `adb devices` — the device must be listed. |
 | Widget not found by key | The key must be registered and the widget must be in the current visible tree. |
 | Tap has no effect | The widget may be scrolled off-screen or its `onPressed` is null. Use `inspect_ui` to verify coordinates. |

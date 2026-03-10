@@ -15,7 +15,7 @@ mcpe2e  (Flutter dev_dependency inside your app)
 Flutter app on real device / simulator
 ```
 
-Version: **1.0.7**
+Version: **1.1.6**
 
 ---
 
@@ -69,13 +69,15 @@ This opens an interactive ANSI menu showing the current registration status of e
 
 ## TESTBRIDGE_URL
 
-This environment variable tells `mcpe2e_server` where the in-app HTTP server is reachable from your machine. You must forward the device port to localhost before running tests.
+This environment variable tells `mcpe2e_server` where the in-app HTTP server is reachable from your machine.
 
-| Platform | Forward Command | URL |
+Android port forwarding is handled **automatically** by `mcpe2e_server` at startup — no manual `adb forward` needed. For iOS, run `iproxy 7778 7777` once before starting the server.
+
+| Platform | Forward | URL |
 |---|---|---|
-| Android | `adb forward tcp:7778 tcp:7777` | `http://localhost:7778` |
+| Android | Automatic (ADB) | `http://localhost:7778` |
 | iOS | `iproxy 7778 7777` | `http://localhost:7778` |
-| Desktop (direct) | none | `http://localhost:7777` |
+| Desktop (direct) | None | `http://localhost:7777` |
 
 ```bash
 # Override if your setup uses a different port
@@ -93,7 +95,15 @@ export TESTBRIDGE_URL=http://localhost:7778
 
 ---
 
-## MCP Tools (29 total)
+## MCP Tools (32 total)
+
+### Multi-device
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `list_devices` | — | Discover connected Android devices/emulators, auto-forward ports, ping each, return status and active screen |
+| `select_device` | `serial` | Switch the active device. All subsequent tools target the selected device |
+| `run_command` | `command`, `working_dir?`, `background?` | Run any shell command (`flutter run`, `adb`, etc.); `background=true` for long-running processes |
 
 ### Context
 
@@ -102,7 +112,7 @@ export TESTBRIDGE_URL=http://localhost:7778
 | `get_app_context` | Returns registered widgets with metadata and capabilities |
 | `list_test_cases` | Lists all registered test cases in the app |
 | `inspect_ui` | Full widget tree with types, labels, values, states, and coordinates |
-| `capture_screenshot` | Returns a real PNG screenshot via the Flutter layer tree |
+| `capture_screenshot` | Returns a real PNG screenshot. Android: ADB screencap (debug and release). Desktop: Flutter layer tree (debug/profile only) |
 
 ### Gestures
 

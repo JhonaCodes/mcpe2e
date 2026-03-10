@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.1.6] - 2026-03-10
+
+### Added
+- Auto ADB port forwarding on startup: `mcpe2e_server` runs `adb forward tcp:<port> tcp:7777`
+  for every connected device before the first tool call. No manual `adb forward` needed.
+- Device watcher: polls `adb devices` every 5 seconds and auto-forwards any device that
+  connects after server startup. New device appears in `list_devices` within ≤5s.
+- Dynamic port allocation: first device gets :7778, second :7779, etc.
+
+### Changed
+- `capture_screenshot`: ADB screencap (`adb exec-out screencap -p`) is now the primary path
+  on Android — works in both debug and release builds. Flutter layer tree is the desktop
+  fallback (debug/profile only).
+- `DeviceRegistry`: added `isRegistered(serial)` and `allUrls` helpers for device watcher logic.
+
+---
+
+## [1.1.5] - 2026-03-10
+
+### Added
+- OpenCode agent support in `setup` TUI: toggle registration for OpenCode alongside
+  Claude Code, Claude Desktop, Codex CLI, and Gemini CLI.
+
+---
+
+## [1.1.4] - 2026-03-10
+
+### Added
+- Dialog interaction: `tap_widget` and `tap_at` now work on AlertDialog, BottomSheet,
+  and other overlay widgets that were previously unreachable.
+- Coordinate-based gestures: `swipe_widget`, `drag_widget`, and `long_press_widget` now
+  accept `x`/`y` coordinate params as an alternative to widget keys.
+- Loading-aware `wait`: polls `inspect_ui` until no loading indicators are visible.
+
+---
+
 ## [1.1.2] - 2026-03-10
 
 ### Fixed
