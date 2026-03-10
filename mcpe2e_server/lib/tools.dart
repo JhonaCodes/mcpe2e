@@ -410,9 +410,14 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'press_back',
     'description':
-        'Navega atrás en el stack de navegación. '
-        'Equivale al botón Back de Android o al gesto de back de iOS. '
-        'key es opcional — no se necesita un widget específico para volver atrás.',
+        'Envía el evento Back del sistema operativo (botón físico de Android / gesto de iOS). '
+        'ADVERTENCIA: Si la pantalla actual es la pantalla raíz de la app (home/root), '
+        'este evento CIERRA la aplicación. '
+        'ANTES de llamar press_back, llama inspect_ui y busca: '
+        '(1) un widget de tipo BackButton, ArrowBackButton, o IconButton con tooltip "Back", '
+        '(2) el botón leading del AppBar — usa tap_at con sus coordenadas en su lugar. '
+        'Usa press_back SOLO cuando no haya botón de back visible en la pantalla '
+        'o cuando quieras cerrar un diálogo/overlay con el gesto del sistema.',
     'inputSchema': {
       'type': 'object',
       'properties': {
@@ -978,7 +983,46 @@ Future<List<Map<String, dynamic>>> callTool(
     'hide_keyboard' =>
       bridge.get('/action?key=_keyboard&type=hidekeyboard').then(t),
 
-    'press_back' => () {
+    'press_back' => () async {
+        // Smart back: prefer tapping the AppBar leading/back button over
+        // the system back event, which closes the app on the root screen.
+        try {
+          final tree = await bridge.get('/mcp/tree');
+          final data = jsonDecode(tree) as Map<String, dynamic>;
+          final widgets = (data['widgets'] as List? ?? []).cast<Map<String, dynamic>>();
+
+          // Look for a visible back button in the AppBar area (y < 120 logical px)
+          final backWidget = widgets.firstWhere(
+            (w) {
+              final type    = (w['type'] as String?) ?? '';
+              final tooltip = ((w['tooltip'] as String?) ?? '').toLowerCase();
+              final label   = ((w['label']   as String?) ?? '').toLowerCase();
+              final y       = (w['y'] as num?) ?? 9999;
+              final isBackType = type == 'BackButton' ||
+                  type == 'ArrowBackButton' ||
+                  (type == 'IconButton' && (tooltip.contains('back') || tooltip.contains('atrás') || label.contains('back')));
+              return isBackType && y < 200;
+            },
+            orElse: () => <String, dynamic>{},
+          );
+
+          if (backWidget.isNotEmpty) {
+            // Tap the visual back button instead of the system event
+            final x  = (backWidget['x'] as num).toDouble();
+            final y  = (backWidget['y'] as num).toDouble();
+            final w  = (backWidget['w'] as num?)?.toDouble() ?? 48;
+            final h  = (backWidget['h'] as num?)?.toDouble() ?? 48;
+            final cx = (x + w / 2).round();
+            final cy = (y + h / 2).round();
+            return _thenWaitIdle(
+              bridge.post('/action', {'type': 'tapAt', 'dx': cx, 'dy': cy}).then(t),
+              bridge,
+            );
+          }
+        } catch (_) {
+          // Fall through to system back on any error
+        }
+
         final key = args['key'] as String? ?? '_';
         return _thenWaitIdle(
           bridge.get('/action?key=${k(key)}&type=pressback').then(t),

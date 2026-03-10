@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.3] - 2026-03-10
+
+### Fixed
+- `press_back` no longer closes the app when the LLM calls it on the root screen.
+  Before sending the system Back event, the tool inspects the live widget tree and
+  looks for a `BackButton`, `ArrowBackButton`, or `IconButton` with tooltip "Back"/"Atrás"
+  in the AppBar area (y < 200 px). If found, it taps the visual button instead of
+  firing the OS back event. Falls through to the system event only when no visual
+  back button exists (e.g. closing a dialog with no Cancel button).
+
+### Changed
+- `press_back` description updated with explicit warning: the system back event closes
+  the app on the root screen. The description now instructs the LLM to inspect_ui first
+  and prefer tapping the AppBar back button via tap_at.
+
+---
+
 ## [2.0.2] - 2026-03-10
 
 ### Changed

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3] - 2026-03-10
+
+### Changed
+- Version bump to 2.0.3 (sync with mcpe2e_server v2.0.3 — smart press_back avoids closing app).
+
+---
+
 ## [2.0.2] - 2026-03-10
 
 ### Changed
