@@ -869,8 +869,8 @@ Future<List<Map<String, dynamic>>> callTool(
     'input_text' => () async {
         final text = args['text'] as String;
         final clear = args['clear_first'] as bool? ?? false;
-        final x = args['x'] as num?;
-        final y = args['y'] as num?;
+        final x = _toNumOpt(args['x']);
+        final y = _toNumOpt(args['y']);
         final key = args['key'] as String?;
 
         // Coordinate-based (preferred): tap to focus + ADB to type
@@ -942,8 +942,8 @@ Future<List<Map<String, dynamic>>> callTool(
       }(),
 
     'toggle_widget' => () async {
-        final x = args['x'] as num?;
-        final y = args['y'] as num?;
+        final x = _toNumOpt(args['x']);
+        final y = _toNumOpt(args['y']);
         final key = args['key'] as String?;
 
         // Coordinate mode (preferred — real pointer event triggers gestures natively)

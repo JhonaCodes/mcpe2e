@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.4] - 2026-03-10
+
+### Fixed
+- `input_text` and `toggle_widget` no longer crash with
+  `type 'String' is not a subtype of type 'num?'` when the LLM passes
+  `x`/`y` coordinates as JSON strings (e.g. `"191"` instead of `191`).
+  Applied `_toNumOpt` to all remaining `args['x'] as num?` casts.
+  Zero direct `as num` / `as int` casts from args remain in the codebase.
+
+---
+
 ## [2.0.3] - 2026-03-10
 
 ### Fixed

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.4] - 2026-03-10
+
+### Changed
+- Version bump to 2.0.4 (sync with mcpe2e_server v2.0.4 — input_text/toggle_widget string coord fix).
+
+---
+
 ## [2.0.3] - 2026-03-10
 
 ### Changed
