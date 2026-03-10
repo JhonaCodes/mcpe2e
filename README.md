@@ -1,6 +1,6 @@
 # mcpe2e — AI-driven Flutter E2E Testing
 
-[![version](https://img.shields.io/badge/version-1.1.7-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v1.1.7)
+[![version](https://img.shields.io/badge/version-1.1.8-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v1.1.8)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 mcpe2e lets an AI agent (Claude, Codex, Gemini) control a real Flutter app running on a device or simulator. The agent calls MCP tools in natural language — tap, type, scroll, assert — and those commands reach the live widget tree as real pointer events.
@@ -64,7 +64,7 @@ dev_dependencies:
     git:
       url: https://github.com/JhonaCodes/mcpe2e.git
       path: mcpe2e
-      ref: v1.1.7
+      ref: v1.1.8
 ```
 
 ```bash

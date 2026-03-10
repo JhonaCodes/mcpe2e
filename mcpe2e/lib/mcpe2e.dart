@@ -73,3 +73,8 @@ export 'server/mcp_event_server.dart';
 // McpScreenCapture: captura la pantalla via layer tree interno (debug/profile).
 export 'core/mcp_tree_inspector.dart';
 export 'core/mcp_screen_capture.dart';
+
+// ── Observador de navegación ──────────────────────────────────────────────────
+// McpNavigatorObserver: captura el route activo para get_app_context.
+// Registrar en MaterialApp(navigatorObservers:) o GoRouter(observers:).
+export 'core/mcp_navigator_observer.dart';

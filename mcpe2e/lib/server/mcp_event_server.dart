@@ -33,6 +33,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:logger_rs/logger_rs.dart';
 
+import '../core/mcp_navigator_observer.dart';
 import '../core/mcp_screen_capture.dart';
 import '../core/mcp_tree_inspector.dart';
 import '../events/mcp_events_core.dart';
@@ -200,7 +201,9 @@ class McpEventServer {
   /// }
   /// ```
   static void _handleMcpContext(HttpRequest req) {
-    _sendJson(req, McpEvents.instance.toJson());
+    _sendJson(req, McpEvents.instance.toJson(
+      route: McpNavigatorObserver.instance.currentRoute,
+    ));
   }
 
   /// GET /mcp/tree — Árbol de widgets con datos de la pantalla actual.

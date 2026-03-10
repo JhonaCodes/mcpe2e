@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.8] - 2026-03-10
+
+### Added
+- `McpNavigatorObserver` — singleton `NavigatorObserver` que captura el route
+  activo del Navigator y lo expone en `get_app_context` como `route` real.
+  Registrar con una línea:
+  - `MaterialApp(navigatorObservers: [McpNavigatorObserver.instance])`
+  - `GoRouter(observers: [McpNavigatorObserver.instance])`
+  Sin registro: comportamiento anterior (fallback a `/unknownscreen`).
+
+### Changed
+- `GET /mcp/context` ahora pasa `McpNavigatorObserver.instance.currentRoute`
+  al `toJson()`, reemplazando el route derivado mecánicamente del screen name.
+- `mcpe2e.dart` exporta `McpNavigatorObserver`.
+
+---
+
 ## [1.1.7] - 2026-03-10
 
 ### Fixed

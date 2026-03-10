@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.8] - 2026-03-10
+
+### Changed
+- Version sync con mcpe2e v1.1.8 — `McpNavigatorObserver` para route real.
+
+---
+
 ## [1.1.7] - 2026-03-10
 
 ### Changed
