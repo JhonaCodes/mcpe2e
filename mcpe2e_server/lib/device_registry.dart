@@ -36,4 +36,10 @@ class DeviceRegistry {
 
   String get activeSerial => _activeSerial ?? 'default';
   List<String> get serials => _devices.keys.toList();
+
+  /// Whether a device with this serial has already been registered (excludes 'default').
+  bool isRegistered(String serial) => _devices.containsKey(serial);
+
+  /// Base URLs of all registered bridges (used to compute occupied ports).
+  List<String> get allUrls => _devices.values.map((b) => b.baseUrl).toList();
 }

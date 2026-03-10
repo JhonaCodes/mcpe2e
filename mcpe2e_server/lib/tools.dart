@@ -614,7 +614,8 @@ final List<Map<String, dynamic>> toolDefinitions = [
         'Captura la pantalla actual como imagen PNG. '
         'Usar para: detectar problemas visuales, layout roto, colores incorrectos '
         'o verificación visual general. '
-        'Solo disponible en debug/profile mode (retorna error en release). '
+        'En Android usa ADB screencap (siempre disponible, debug y release). '
+        'En desktop usa el layer tree de Flutter (solo debug/profile). '
         'Para verificar valores de datos, prefer inspect_ui (más eficiente en tokens).',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
@@ -1030,10 +1031,35 @@ Future<List<Map<String, dynamic>>> callTool(
       bridge.get('/mcp/tree').then(t),
 
     'capture_screenshot' => () async {
-        final raw = await bridge.get('/mcp/screenshot');
-        final json = jsonDecode(raw) as Map<String, dynamic>;
-        if (json.containsKey('error')) return t('Error: ${json['error']}');
-        return img(json['base64'] as String);
+        // ── Android: ADB screencap (primary — reliable in debug and release) ──
+        // adb exec-out screencap -p → raw PNG bytes to stdout (no shell encoding)
+        final adb = findAdb();
+        final serial = registry.activeSerial;
+        final base = serial == 'default' ? <String>[] : ['-s', serial];
+        final adbResult = Process.runSync(
+          adb,
+          [...base, 'exec-out', 'screencap', '-p'],
+          stdoutEncoding: null, // null = List<int>, avoids UTF-8 corruption of binary
+        );
+        if (adbResult.exitCode == 0) {
+          final bytes = adbResult.stdout as List<int>;
+          // Verify PNG magic bytes (89 50 4E 47) to confirm valid output
+          if (bytes.length > 4 &&
+              bytes[0] == 0x89 && bytes[1] == 0x50 &&
+              bytes[2] == 0x4E && bytes[3] == 0x47) {
+            return img(base64Encode(bytes));
+          }
+        }
+
+        // ── Desktop fallback: Flutter layer tree (debug/profile only) ──
+        try {
+          final raw = await bridge.get('/mcp/screenshot');
+          final json = jsonDecode(raw) as Map<String, dynamic>;
+          if (json.containsKey('error')) return t('Error: ${json['error']}');
+          return img(json['base64'] as String);
+        } catch (e) {
+          return t('Error: screenshot failed. ADB not available and Flutter capture failed: $e');
+        }
       }(),
 
     // ── Ejecución de comandos ─────────────────────────────────────────────────

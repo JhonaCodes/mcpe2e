@@ -12,8 +12,20 @@ class McpServer {
   McpServer(String baseUrl) : registry = DeviceRegistry(baseUrl);
 
   Future<void> run() async {
-    // Auto-discover connected Android devices on startup (non-blocking).
-    // Sets up ADB port-forwarding automatically — no manual setup needed.
+    // ── Step 1: Synchronous ADB forward ──────────────────────────────────────
+    // Runs immediately before the stdin loop so the very first tool call
+    // already has a working bridge — no manual "adb forward" needed.
+    // Fast (~50ms): just enumerates devices and sets up forwarding.
+    // Does NOT require the Flutter app to be running yet.
+    _autoForwardAdb(registry);
+
+    // ── Step 2: Device watcher — detects new devices while server runs ────────
+    // Polls every 5s. Forwards and registers any device that appears after startup.
+    _startDeviceWatcher(registry);
+
+    // ── Step 3: Full device registration (non-blocking) ──────────────────────
+    // Pings each device to confirm mcpe2e is running and reads the active
+    // screen name. Runs in background — doesn't delay the first tool call.
     unawaited(callTool(registry, 'list_devices', {}).catchError((_) => <Map<String, dynamic>>[]));
 
     await for (final line in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
@@ -32,6 +44,75 @@ class McpServer {
         stdout.writeln(jsonEncode(response));
       }
     }
+  }
+
+  void _autoForwardAdb(DeviceRegistry registry) {
+    try {
+      final adb = findAdb();
+      final result = Process.runSync(adb, ['devices']);
+      if (result.exitCode != 0) {
+        stderr.writeln('[mcpe2e] ADB not found — install Android SDK platform-tools');
+        return;
+      }
+      final lines = (result.stdout as String)
+          .split('\n')
+          .skip(1)
+          .where((l) => l.contains('\tdevice'))
+          .toList();
+
+      if (lines.isEmpty) return; // no devices — silent, watcher will retry
+
+      int port = 7778;
+      for (final line in lines) {
+        final serial = line.split('\t').first.trim();
+        final fwd = Process.runSync(adb, ['-s', serial, 'forward', 'tcp:$port', 'tcp:7777']);
+        if (fwd.exitCode == 0) {
+          registry.register(serial, 'http://localhost:$port');
+          stderr.writeln('[mcpe2e] ✓ $serial → localhost:$port');
+        } else {
+          stderr.writeln('[mcpe2e] ✗ forward failed for $serial: ${fwd.stderr}');
+        }
+        port++;
+      }
+    } catch (e) {
+      stderr.writeln('[mcpe2e] ADB error: $e');
+    }
+  }
+
+  void _startDeviceWatcher(DeviceRegistry registry) {
+    Timer.periodic(const Duration(seconds: 5), (_) {
+      try {
+        final adb = findAdb();
+        final result = Process.runSync(adb, ['devices']);
+        if (result.exitCode != 0) return;
+
+        final lines = (result.stdout as String)
+            .split('\n')
+            .skip(1)
+            .where((l) => l.contains('\tdevice'))
+            .toList();
+
+        final usedPorts = registry.allUrls
+            .map((url) => Uri.parse(url).port)
+            .toSet();
+        int port = 7778;
+
+        for (final line in lines) {
+          final serial = line.split('\t').first.trim();
+          if (registry.isRegistered(serial)) continue; // already forwarded
+
+          while (usedPorts.contains(port)) port++;
+
+          final fwd = Process.runSync(adb, ['-s', serial, 'forward', 'tcp:$port', 'tcp:7777']);
+          if (fwd.exitCode == 0) {
+            registry.register(serial, 'http://localhost:$port');
+            usedPorts.add(port);
+            stderr.writeln('[mcpe2e] ✓ new device $serial → localhost:$port');
+          }
+          port++;
+        }
+      } catch (_) {}
+    });
   }
 
   Future<Map<String, dynamic>?> _handle(Map<String, dynamic> req) async {
