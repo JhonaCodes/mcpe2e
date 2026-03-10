@@ -721,8 +721,31 @@ Future<List<Map<String, dynamic>>> callTool(
   return switch (name) {
 
     // ── Contexto ─────────────────────────────────────────────────────────────
-    'get_app_context' || 'list_test_cases' =>
-      bridge.get('/mcp/context').then(t),
+    'get_app_context' || 'list_test_cases' => () async {
+      final ctx = await bridge.get('/mcp/context');
+      final data = jsonDecode(ctx) as Map<String, dynamic>;
+      // If screen is unknown (no McpMetadataKey on root), enrich with AppBar
+      // title from the live widget tree so the LLM always has a screen name.
+      final screen = (data['screen'] as String?) ?? '';
+      if (screen.toLowerCase().contains('unknown') || screen.isEmpty) {
+        try {
+          final tree = await bridge.get('/mcp/tree');
+          final treeData = jsonDecode(tree) as Map<String, dynamic>;
+          final widgets =
+              (treeData['widgets'] as List? ?? []).cast<Map<String, dynamic>>();
+          final appBar =
+              widgets.where((w) => w['type'] == 'AppBar').firstOrNull;
+          final title = appBar?['title'] as String?;
+          if (title != null) {
+            data['screen'] = title;
+            data['note'] =
+                'Screen inferred from AppBar. Register McpMetadataKey on '
+                'the root widget for stable screen IDs.';
+          }
+        } catch (_) {}
+      }
+      return t(jsonEncode(data));
+    }(),
 
     // ── Gestos básicos ────────────────────────────────────────────────────────
     'tap_widget' =>
@@ -1028,7 +1051,7 @@ Future<List<Map<String, dynamic>>> callTool(
 
     // ── Inspección del UI ──────────────────────────────────────────────────────
     'inspect_ui' =>
-      bridge.get('/mcp/tree').then(t),
+      bridge.get('/mcp/tree').then((raw) => t(_compactTree(raw))),
 
     'capture_screenshot' => () async {
         // ── Android: ADB screencap (primary — reliable in debug and release) ──
@@ -1212,4 +1235,195 @@ Future<List<Map<String, dynamic>>> callTool(
 
     _ => Future.error(Exception('Herramienta desconocida: $name')),
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _compactTree — formato compacto para inspect_ui
+//
+// Transforma el JSON plano del árbol de widgets en texto accionable para el LLM.
+// Reduce ~90% los tokens respecto al JSON verboso original.
+//
+// Estructura del output:
+//   Screen: <AppBar title> (<N> widgets)
+//
+//   INTERACTIVE:          ← botones, campos, toggles, sliders, dropdowns
+//     Type  label  →  tap_at(cx, cy)   [disabled] [overlay]
+//
+//   TEXT:                 ← texto visible no interactivo
+//     "value"
+//
+//   OVERLAY [depth: N]:   ← diálogos y bottom sheets activos
+//     AlertDialog  "título"
+//     ElevatedButton "OK"  →  tap_at(cx, cy)  [overlay]
+//
+//   LOADING: none | CircularProgressIndicator
+//
+// El campo depth se preserva SOLO para widgets overlay, donde indica la capa
+// del diálogo y ayuda al LLM a distinguir elementos del diálogo vs pantalla.
+// Para widgets normales, depth es ruido y se omite.
+// ─────────────────────────────────────────────────────────────────────────────
+
+String _compactTree(String rawJson) {
+  try {
+    final data = jsonDecode(rawJson) as Map<String, dynamic>;
+    final all =
+        (data['widgets'] as List? ?? []).cast<Map<String, dynamic>>();
+
+    if (all.isEmpty) return 'Screen: empty (0 widgets)';
+
+    // AppBar title → screen name
+    final appBar = all.where((w) => w['type'] == 'AppBar').firstOrNull;
+    final screen = appBar?['title'] as String? ?? 'unknown';
+
+    const interactiveTypes = {
+      'ElevatedButton', 'TextButton', 'OutlinedButton', 'FilledButton',
+      'IconButton', 'TextField', 'TextFormField', 'Checkbox', 'Switch',
+      'Radio', 'Slider', 'DropdownButtonFormField',
+    };
+
+    final mainInteractive = <Map<String, dynamic>>[];
+    final mainText        = <Map<String, dynamic>>[];
+    final overlayNodes    = <Map<String, dynamic>>[];  // dialogs + their children
+    final loading         = <Map<String, dynamic>>[];
+
+    for (final w in all) {
+      final type      = w['type'] as String;
+      final isOverlay = w['overlay'] as bool? ?? false;
+      final isLoading = w['loading'] as bool? ?? false;
+
+      if (isLoading) { loading.add(w); continue; }
+      if (type == 'AppBar') continue; // shown in header
+
+      if (isOverlay) {
+        overlayNodes.add(w);
+      } else if (interactiveTypes.contains(type)) {
+        mainInteractive.add(w);
+      } else if (type == 'Text') {
+        mainText.add(w);
+      }
+    }
+
+    final buf = StringBuffer();
+    buf.writeln('Screen: $screen (${all.length} widgets)');
+
+    // ── INTERACTIVE ──────────────────────────────────────────────────────────
+    if (mainInteractive.isNotEmpty) {
+      buf.writeln();
+      buf.writeln('INTERACTIVE:');
+      for (final w in mainInteractive) {
+        buf.writeln(_widgetLine(w, showDepth: false));
+      }
+    }
+
+    // ── TEXT ─────────────────────────────────────────────────────────────────
+    final textValues = mainText
+        .map((w) => w['value'] as String? ?? '')
+        .where((v) => v.isNotEmpty)
+        .toList();
+    if (textValues.isNotEmpty) {
+      buf.writeln();
+      buf.writeln('TEXT:');
+      for (final v in textValues) {
+        buf.writeln('  "$v"');
+      }
+    }
+
+    // ── OVERLAY ──────────────────────────────────────────────────────────────
+    if (overlayNodes.isNotEmpty) {
+      // Find the minimum depth of the overlay section (dialog container depth)
+      final depths = overlayNodes
+          .map((w) => w['depth'] as int? ?? 0)
+          .toList()..sort();
+      final baseDepth = depths.first;
+      buf.writeln();
+      buf.writeln('OVERLAY [depth: $baseDepth]:');
+      for (final w in overlayNodes) {
+        final type = w['type'] as String;
+        // Show container widgets (AlertDialog, BottomSheet, SnackBar)
+        if (type == 'AlertDialog' || type == 'BottomSheet' || type == 'SnackBar') {
+          final title = w['title'] as String? ?? w['content'] as String? ?? '';
+          buf.writeln('  $type${title.isNotEmpty ? "  \"$title\"" : ""}');
+        } else if (interactiveTypes.contains(type)) {
+          buf.writeln(_widgetLine(w, showDepth: true));
+        } else if (type == 'Text') {
+          final val = w['value'] as String? ?? '';
+          if (val.isNotEmpty) buf.writeln('  Text  "$val"');
+        }
+      }
+    }
+
+    // ── LOADING ──────────────────────────────────────────────────────────────
+    buf.writeln();
+    buf.write('LOADING: ');
+    buf.writeln(
+      loading.isEmpty
+          ? 'none'
+          : loading.map((w) => w['type'] as String).join(', '),
+    );
+
+    return buf.toString().trimRight();
+  } catch (_) {
+    return rawJson; // fallback: raw JSON on any parse error
+  }
+}
+
+/// Formats a single widget as a compact one-liner.
+///
+/// Format: `  Type  label  →  tap_at(cx, cy)  [disabled]  [depth:N]`
+String _widgetLine(Map<String, dynamic> w, {required bool showDepth}) {
+  final type    = w['type'] as String;
+  final enabled = w['enabled'] as bool? ?? true;
+  final depth   = w['depth'] as int?;
+  final label   = _widgetLabel(w);
+  final center  = _centerCoords(w);
+
+  final parts = StringBuffer('  $type');
+  if (label.isNotEmpty) parts.write('  $label');
+  if (center != null)   parts.write('  →  tap_at$center');
+  if (!enabled)         parts.write('  [disabled]');
+  if (showDepth && depth != null) parts.write('  [depth:$depth]');
+  return parts.toString();
+}
+
+/// Returns a short human-readable label for the widget's content/state.
+String _widgetLabel(Map<String, dynamic> w) {
+  final type = w['type'] as String;
+  switch (type) {
+    case 'TextField':
+    case 'TextFormField':
+      final val  = w['value'] as String?;
+      final hint = w['hint']  as String?;
+      if (val != null && val.isNotEmpty) return 'value:"$val"';
+      if (hint != null && hint.isNotEmpty) return 'hint:"$hint"';
+      return '';
+    case 'Checkbox':
+    case 'Switch':
+      return (w['value'] as bool? ?? false) ? '☑' : '☐';
+    case 'Radio':
+      return (w['selected'] as bool? ?? false) ? '◉' : '○';
+    case 'Slider':
+      return 'value=${w['value']}  [${w['min']}..${w['max']}]';
+    case 'DropdownButtonFormField':
+      final val = w['value'] as String?;
+      return val != null && val.isNotEmpty ? '"$val"' : '';
+    case 'IconButton':
+      final tip = w['tooltip'] as String?;
+      return tip != null ? '[$tip]' : '';
+    default:
+      final label = w['label'] as String?;
+      return label != null && label.isNotEmpty ? '"$label"' : '';
+  }
+}
+
+/// Calculates the center of a widget from its x/y/w/h fields.
+/// Returns `(cx, cy)` as a string, or null if coordinates are missing.
+String? _centerCoords(Map<String, dynamic> w) {
+  final x  = w['x']  as num?;
+  final y  = w['y']  as num?;
+  final ww = w['w']  as num?;
+  final h  = w['h']  as num?;
+  if (x == null || y == null || ww == null || h == null) return null;
+  final cx = (x + ww / 2).toStringAsFixed(1);
+  final cy = (y + h  / 2).toStringAsFixed(1);
+  return '($cx, $cy)';
 }
