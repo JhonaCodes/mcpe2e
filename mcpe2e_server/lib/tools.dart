@@ -609,6 +609,16 @@ final List<Map<String, dynamic>> toolDefinitions = [
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
   {
+    'name': 'inspect_ui_compact',
+    'description':
+        'Versión compacta de inspect_ui: agrupa los widgets en secciones '
+        'INTERACTIVE / TEXT / OTHER / OVERLAY / LOADING con centros pre-calculados. '
+        'Usa esto cuando la pantalla es simple y quieres ahorrar tokens. '
+        'Para pantallas complejas o widgets custom (third-party), usa inspect_ui '
+        'para obtener el JSON completo con todos los widgets y coordenadas exactas.',
+    'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
+  },
+  {
     'name': 'capture_screenshot',
     'description':
         'Captura la pantalla actual como imagen PNG. '
@@ -1050,7 +1060,13 @@ Future<List<Map<String, dynamic>>> callTool(
       ),
 
     // ── Inspección del UI ──────────────────────────────────────────────────────
+    // Returns raw JSON widget tree — full fidelity, all widget types visible.
     'inspect_ui' =>
+      bridge.get('/mcp/tree').then((raw) => t(raw)),
+
+    // Compact grouped summary: INTERACTIVE / TEXT / OTHER / OVERLAY / LOADING.
+    // Token-efficient for simple screens; use inspect_ui for custom/third-party widgets.
+    'inspect_ui_compact' =>
       bridge.get('/mcp/tree').then((raw) => t(_compactTree(raw))),
 
     'capture_screenshot' => () async {

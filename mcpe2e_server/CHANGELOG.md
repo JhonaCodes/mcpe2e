@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.2] - 2026-03-10
+
+### Changed
+- `inspect_ui` reverted to raw JSON output — full widget tree with all types, coordinates,
+  values and states. Custom and third-party widgets are fully visible again.
+  This was the original behavior that worked reliably for LLM navigation.
+
+### Added
+- `inspect_ui_compact` — new dedicated tool for the token-efficient grouped format
+  (INTERACTIVE / TEXT / OTHER / OVERLAY / LOADING). Use on simple screens to save tokens;
+  use `inspect_ui` whenever custom/third-party widgets are present.
+
+---
+
 ## [2.0.1] - 2026-03-10
 
 ### Added

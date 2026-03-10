@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2] - 2026-03-10
+
+### Changed
+- Version bump to 2.0.2 (sync with mcpe2e_server v2.0.2 — inspect_ui reverted to raw JSON, inspect_ui_compact added as separate tool).
+
+---
+
 ## [2.0.1] - 2026-03-10
 
 ### Changed
