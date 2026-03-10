@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0] - 2026-03-10
+
+### Changed
+- Version bump to 2.1.0 (sync with mcpe2e_server v2.1.0 — MCP Prompts skill + agent protocol).
+
+---
+
 ## [2.0.5] - 2026-03-10
 
 ### Changed

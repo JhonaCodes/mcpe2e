@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'device_registry.dart';
+import 'skill.dart';
 import 'tools.dart';
 import 'version.dart';
 
@@ -131,7 +132,7 @@ class McpServer {
           'id': id,
           'result': {
             'protocolVersion': '2024-11-05',
-            'capabilities': {'tools': {}},
+            'capabilities': {'tools': {}, 'prompts': {}},
             'serverInfo': {'name': kServerName, 'version': kServerVersion},
           },
         };
@@ -141,6 +142,48 @@ class McpServer {
           'jsonrpc': '2.0',
           'id': id,
           'result': {'tools': toolDefinitions},
+        };
+
+      case 'prompts/list':
+        return {
+          'jsonrpc': '2.0',
+          'id': id,
+          'result': {
+            'prompts': [
+              {
+                'name': 'mcpe2e_workflow',
+                'description':
+                    'Complete Flutter E2E interaction guide: core loop, tool decision tree, '
+                    'form/dialog/navigation/custom-widget patterns, error recovery and agent protocol. '
+                    'Request this prompt before starting any E2E task to understand how to use the tools effectively.',
+                'arguments': [],
+              },
+            ],
+          },
+        };
+
+      case 'prompts/get':
+        final promptName =
+            (req['params'] as Map<String, dynamic>?)?['name'] as String? ?? '';
+        if (promptName != 'mcpe2e_workflow') {
+          return {
+            'jsonrpc': '2.0',
+            'id': id,
+            'error': {'code': -32602, 'message': 'Prompt not found: $promptName'},
+          };
+        }
+        return {
+          'jsonrpc': '2.0',
+          'id': id,
+          'result': {
+            'description': 'mcpe2e Flutter E2E workflow guide and agent protocol',
+            'messages': [
+              {
+                'role': 'user',
+                'content': {'type': 'text', 'text': kMcpe2eWorkflowSkill},
+              },
+            ],
+          },
         };
 
       case 'tools/call':

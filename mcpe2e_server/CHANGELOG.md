@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.1.0] - 2026-03-10
+
+### Added
+- **MCP Prompts capability**: `mcpe2e_server` now exposes the `prompts` capability
+  and responds to `prompts/list` and `prompts/get` per the MCP 2024-11-05 spec.
+- **`mcpe2e_workflow` prompt**: a universal Flutter E2E workflow guide and agent
+  protocol available to any MCP client (Claude, Gemini, Codex, etc.).
+  Request it with `prompts/get { "name": "mcpe2e_workflow" }`.
+  Covers:
+  - Role definition (LLM decides WHAT, tools execute HOW)
+  - Core Loop: inspect_ui → identify → center coords → act → verify
+  - Tool Decision Tree for every interaction type
+  - Patterns: Form, Dialog/Overlay, AppBar dropdown, Custom widgets, Navigation
+  - Error Recovery for all common failure scenarios
+  - Agent Task Format with generic examples
+- `lib/skill.dart` — new file containing `kMcpe2eWorkflowSkill` constant.
+
+---
+
 ## [2.0.5] - 2026-03-10
 
 ### Changed
