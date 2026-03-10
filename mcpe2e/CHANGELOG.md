@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1] - 2026-03-10
+
+### Changed
+- Version bump to 2.0.1 (sync with mcpe2e_server v2.0.1 — OTHER section in inspect_ui, comprehensive widget type coverage).
+
+---
+
 ## [2.0.0] - 2026-03-10
 
 ### Fixed

@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.1] - 2026-03-10
+
+### Added
+- `OTHER` section in `inspect_ui` compact output: custom and third-party widgets that are not
+  in the known type set (e.g. `MultiSelectField`, `CustomDropdown`, any third-party widget)
+  now appear with their type, key, label, and `tap_at(cx, cy)` coordinates instead of being
+  silently dropped. The LLM can now find and interact with any widget in the tree.
+- Comprehensive `structuralTypes` exclusion list (~90 Flutter built-in layout/render/scaffold
+  widget types) — Column, Row, Stack, Container, Scaffold, Sliver*, Animated*, Clip*, etc.
+  are filtered as structural noise. Everything else with coordinates is shown.
+- Expanded `interactiveTypes` set: added FloatingActionButton, CupertinoButton, SearchBar,
+  DropdownButton, DropdownMenu, MenuAnchor, ActionChip, FilterChip, ChoiceChip, InputChip,
+  ListTile, ExpansionTile, SegmentedButton, Stepper and Cupertino equivalents.
+
+---
+
 ## [2.0.0] - 2026-03-10
 
 ### Fixed

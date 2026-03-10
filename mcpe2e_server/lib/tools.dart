@@ -1276,15 +1276,117 @@ String _compactTree(String rawJson) {
     final screen = appBar?['title'] as String? ?? 'unknown';
 
     const interactiveTypes = {
+      // Buttons
       'ElevatedButton', 'TextButton', 'OutlinedButton', 'FilledButton',
-      'IconButton', 'TextField', 'TextFormField', 'Checkbox', 'Switch',
-      'Radio', 'Slider', 'DropdownButtonFormField', 'PopupMenuButton',
+      'FilledButton.tonal', 'FloatingActionButton', 'FloatingActionButton.extended',
+      'IconButton', 'BackButton', 'CloseButton', 'DrawerButton',
+      'CupertinoButton',
+      // Text input
+      'TextField', 'TextFormField', 'CupertinoTextField', 'SearchBar',
+      'SearchAnchor',
+      // Toggles
+      'Checkbox', 'CheckboxListTile', 'Switch', 'SwitchListTile',
+      'Radio', 'RadioListTile', 'CupertinoSwitch',
+      // Sliders / pickers
+      'Slider', 'RangeSlider', 'CupertinoSlider',
+      'DatePicker', 'TimePicker', 'CupertinoDatePicker', 'CupertinoTimerPicker',
+      // Dropdowns / menus
+      'DropdownButton', 'DropdownButtonFormField', 'DropdownMenu',
+      'PopupMenuButton', 'MenuAnchor', 'SubmenuButton', 'MenuItemButton',
+      // Chips (interactive variants)
+      'ActionChip', 'FilterChip', 'ChoiceChip', 'InputChip', 'Chip',
+      // List items (tappable)
+      'ListTile', 'ExpansionTile',
+      // Navigation tabs / steps
+      'Tab', 'BottomNavigationBarItem', 'NavigationDestination',
+      'Step', 'Stepper',
+      // Segmented
+      'SegmentedButton', 'CupertinoSegmentedControl',
+      'CupertinoSlidingSegmentedControl',
     };
 
     final mainInteractive = <Map<String, dynamic>>[];
     final mainText        = <Map<String, dynamic>>[];
     final overlayNodes    = <Map<String, dynamic>>[];  // dialogs + their children
     final loading         = <Map<String, dynamic>>[];
+    final otherWidgets    = <Map<String, dynamic>>[];  // custom/third-party widgets
+
+    // Types that are structural noise (containers, layout, rendering) — not shown in OTHER.
+    // Anything NOT in this set and NOT in interactiveTypes / Text / AppBar / loading
+    // will appear in the OTHER section so the LLM can see custom/third-party widgets.
+    const structuralTypes = {
+      // ── Layout multi-child ────────────────────────────────────────────────
+      'Column', 'Row', 'Stack', 'Flex', 'Wrap', 'Flow', 'Table',
+      'IndexedStack', 'CustomMultiChildLayout', 'OverflowBar',
+      // ── Layout single-child ───────────────────────────────────────────────
+      'Container', 'SizedBox', 'Padding', 'Align', 'Center',
+      'Expanded', 'Flexible', 'Spacer', 'Positioned', 'PositionedDirectional',
+      'ConstrainedBox', 'UnconstrainedBox', 'OverflowBox', 'SizedOverflowBox',
+      'FractionallySizedBox', 'LimitedBox', 'AspectRatio', 'FittedBox',
+      'Baseline', 'IntrinsicHeight', 'IntrinsicWidth',
+      'CustomSingleChildLayout', 'Offstage', 'PhysicalModel',
+      'Transform', 'RotatedBox', 'FractionalTranslation',
+      // ── Scroll ────────────────────────────────────────────────────────────
+      'SingleChildScrollView', 'CustomScrollView', 'NestedScrollView',
+      'PageView', 'Scrollable', 'ScrollView', 'PrimaryScrollController',
+      'ScrollConfiguration', 'ScrollNotificationObserver',
+      'RawScrollbar', 'Scrollbar',
+      // ── Slivers ───────────────────────────────────────────────────────────
+      'SliverList', 'SliverGrid', 'SliverAppBar', 'SliverToBoxAdapter',
+      'SliverFillRemaining', 'SliverPadding', 'SliverFixedExtentList',
+      'SliverPrototypeExtentList', 'SliverAnimatedList', 'SliverAnimatedGrid',
+      'SliverFillViewport', 'SliverPersistentHeader',
+      'SliverOverlapAbsorber', 'SliverOverlapInjector',
+      'SliverLayoutBuilder', 'CupertinoSliverNavigationBar',
+      // ── Animation ─────────────────────────────────────────────────────────
+      'AnimatedContainer', 'AnimatedOpacity', 'AnimatedAlign',
+      'AnimatedCrossFade', 'AnimatedDefaultTextStyle',
+      'AnimatedList', 'AnimatedGrid', 'AnimatedPositioned',
+      'AnimatedPositionedDirectional', 'AnimatedSize', 'AnimatedSwitcher',
+      'AnimatedPhysicalModel', 'AnimatedTheme', 'AnimatedBuilder',
+      'AnimatedWidget', 'TweenAnimationBuilder',
+      'DecoratedBoxTransition', 'FadeTransition', 'PositionedTransition',
+      'RotationTransition', 'ScaleTransition', 'SizeTransition', 'SlideTransition',
+      // ── Clip / Paint ──────────────────────────────────────────────────────
+      'ClipRect', 'ClipRRect', 'ClipOval', 'ClipPath',
+      'DecoratedBox', 'ColoredBox', 'CustomPaint',
+      'BackdropFilter', 'ShaderMask',
+      // ── Opacity / Visibility ──────────────────────────────────────────────
+      'Opacity', 'Visibility',
+      // ── Interaction wrappers (not buttons) ────────────────────────────────
+      'GestureDetector', 'InkWell', 'InkResponse', 'MouseRegion',
+      'RawGestureDetector', 'Listener', 'AbsorbPointer', 'IgnorePointer',
+      'Focus', 'FocusScope', 'FocusTraversalGroup',
+      'Actions', 'Shortcuts', 'KeyboardListener', 'RawKeyboardListener',
+      'TapRegion', 'TextFieldTapRegion',
+      // ── Navigation / Routing ──────────────────────────────────────────────
+      'Navigator', 'Overlay', 'WillPopScope', 'PopScope',
+      // ── Semantics ─────────────────────────────────────────────────────────
+      'Semantics', 'MergeSemantics', 'ExcludeSemantics',
+      'BlockSemantics', 'IndexedSemantics',
+      // ── State / Lifecycle / DI ────────────────────────────────────────────
+      'Builder', 'StatefulBuilder', 'LayoutBuilder', 'OrientationBuilder',
+      'FutureBuilder', 'StreamBuilder', 'ValueListenableBuilder',
+      'NotificationListener', 'MediaQuery', 'Theme', 'DefaultTextStyle',
+      'Directionality', 'Localizations', 'DefaultAssetBundle',
+      'DefaultSelectionStyle',
+      // ── Scaffold / Navigation shell ───────────────────────────────────────
+      'Scaffold', 'SafeArea', 'Material', 'Ink',
+      'BottomAppBar', 'BottomNavigationBar', 'NavigationBar',
+      'NavigationDrawer', 'NavigationRail', 'Drawer', 'DrawerHeader',
+      'TabBar', 'TabBarView', 'DefaultTabController',
+      'CupertinoTabBar', 'CupertinoTabScaffold', 'CupertinoPageScaffold',
+      'CupertinoNavigationBar',
+      // ── Pure visual / non-interactive ────────────────────────────────────
+      'Icon', 'Image', 'RawImage', 'Placeholder', 'CircleAvatar',
+      'Divider', 'VerticalDivider', 'Badge',
+      'RepaintBoundary', 'Hero', 'Tooltip', 'Banner',
+      'InteractiveViewer', 'MagnificationGesture',
+      // ── Misc ─────────────────────────────────────────────────────────────
+      'KeyedSubtree', 'ColorScheme', 'SelectionArea',
+      'AutofillGroup', 'RestorationScope', 'UnmanagedRestorationScope',
+      'ScrollPositionWithSingleContext',
+    };
 
     for (final w in all) {
       final type      = w['type'] as String;
@@ -1300,6 +1402,10 @@ String _compactTree(String rawJson) {
         mainInteractive.add(w);
       } else if (type == 'Text') {
         mainText.add(w);
+      } else if (!structuralTypes.contains(type)) {
+        // Custom / third-party widgets — include if they have coordinates
+        final hasCoords = w['x'] != null && w['y'] != null;
+        if (hasCoords) otherWidgets.add(w);
       }
     }
 
@@ -1349,6 +1455,23 @@ String _compactTree(String rawJson) {
           final val = w['value'] as String? ?? '';
           if (val.isNotEmpty) buf.writeln('  Text  "$val"');
         }
+      }
+    }
+
+    // ── OTHER (custom / third-party widgets) ─────────────────────────────────
+    if (otherWidgets.isNotEmpty) {
+      buf.writeln();
+      buf.writeln('OTHER (custom widgets — use tap_at with coordinates):');
+      for (final w in otherWidgets) {
+        final type   = w['type'] as String;
+        final center = _centerCoords(w);
+        final key    = w['key'] as String?;
+        final label  = w['label'] as String? ?? w['value'] as String? ?? w['hint'] as String?;
+        final parts  = StringBuffer('  $type');
+        if (key != null && key.isNotEmpty)     parts.write('  key:"$key"');
+        if (label != null && label.isNotEmpty) parts.write('  "$label"');
+        if (center != null) parts.write('  →  tap_at$center');
+        buf.writeln(parts.toString());
       }
     }
 
