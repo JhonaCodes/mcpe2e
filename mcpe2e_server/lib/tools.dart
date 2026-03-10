@@ -315,19 +315,23 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'input_text',
     'description':
-        'Escribe texto en un TextField o TextFormField. '
-        'Modo coordenadas (PREFERIDO, siempre disponible): proporciona x/y del campo '
-        'obtenidos de inspect_ui — enfoca el campo por coordenadas y usa ADB para escribir. '
-        'Modo key (solo si el widget tiene campo "key" en inspect_ui): proporciona key. '
-        'Si se dan x/y, se usan las coordenadas aunque también se pase key. '
-        'Flujo: inspect_ui → toma x/y del campo → input_text x: ... y: ... text: "..." '
-        'IMPORTANTE: si inspect_ui muestra "auto_focus": true en el campo, '
-        'usa skip_focus_tap: true — el teclado ya está abierto y tap_at lo cerraría.',
+        'Escribe texto en un TextField o TextFormField. Tienes DOS opciones:\n\n'
+        'OPCIÓN 1 — input_text con coordenadas (flujo normal):\n'
+        '  inspect_ui → toma x/y del campo → input_text(x, y, text)\n'
+        '  Hace tap en (x,y) para enfocar el campo, luego escribe con ADB.\n'
+        '  Si el campo ya tiene foco (auto_focus: true en inspect_ui), usa skip_focus_tap: true\n'
+        '  para no cerrar el teclado con el tap.\n\n'
+        'OPCIÓN 2 — run_command con ADB (fallback para diálogos y overlays):\n'
+        '  Cuando input_text falla en un diálogo o el tap no llega al campo correcto,\n'
+        '  usa run_command con: adb shell input text "tu_texto"\n'
+        '  Requiere que el campo ya esté enfocado (tocarlo antes con tap_at).\n'
+        '  Útil para: códigos de autenticación, PIN, campos en AlertDialog/BottomSheet.\n\n'
+        'Modo key (alternativo): solo si el widget tiene campo "key" en inspect_ui.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'x': {'type': 'number', 'description': 'Coordenada X del campo (de inspect_ui) — PREFERIDO'},
-        'y': {'type': 'number', 'description': 'Coordenada Y del campo (de inspect_ui) — PREFERIDO'},
+        'x': {'type': 'number', 'description': 'Coordenada X del campo (de inspect_ui)'},
+        'y': {'type': 'number', 'description': 'Coordenada Y del campo (de inspect_ui)'},
         'key': {'type': 'string', 'description': 'ID del campo (solo si tiene campo "key" en inspect_ui)'},
         'text': {'type': 'string', 'description': 'Texto a escribir'},
         'clear_first': {'type': 'boolean', 'description': 'Limpiar campo antes de escribir (default: false)'},
@@ -335,8 +339,8 @@ final List<Map<String, dynamic>> toolDefinitions = [
           'type': 'boolean',
           'description':
               'Omitir el tap de foco antes de escribir (default: false). '
-              'Usar true cuando el campo tiene autoFocus: true (visible como "auto_focus": true en inspect_ui) — '
-              'el teclado ya está abierto; hacer tap primero lo cerraría.',
+              'Usar true cuando el campo tiene "auto_focus": true en inspect_ui, '
+              'o cuando el campo ya está enfocado y no quieres cerrar el teclado.',
         },
       },
       'required': ['text'],
@@ -646,10 +650,15 @@ final List<Map<String, dynamic>> toolDefinitions = [
         'immediately with the PID. Use background:false (default) to wait and capture '
         'stdout/stderr — suitable for finite commands (build, pub get, analyze, etc.). '
         'Supports pipes, &&, and shell features via sh -c. '
+        'ADB text input fallback (for dialogs/overlays where input_text tap fails): '
+        'tap_at to focus field first, then: '
+        'adb -s <serial> shell input text "your_text" '
+        'Useful for: auth codes, PIN fields, AlertDialog inputs. '
+        'Find device serial with: adb devices. '
         'Examples: '
         '"flutter run -d emulator-5554 --flavor dev" (background:true), '
         '"flutter pub get" (background:false), '
-        '"dart analyze" (background:false).',
+        '"adb -s SERIAL shell input text \\"2222\\"" (text input fallback).',
     'inputSchema': {
       'type': 'object',
       'properties': {

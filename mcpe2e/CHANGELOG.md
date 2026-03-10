@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.5] - 2026-03-10
+
+### Changed
+- Version bump to 2.0.5 (sync with mcpe2e_server v2.0.5 — input_text dual-option docs, run_command ADB fallback).
+
+---
+
 ## [2.0.4] - 2026-03-10
 
 ### Changed

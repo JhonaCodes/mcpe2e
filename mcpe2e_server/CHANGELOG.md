@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.5] - 2026-03-10
+
+### Changed
+- `input_text` description now documents both available options explicitly:
+  - **Option 1** (standard): `input_text(x, y, text)` — taps to focus then types via ADB.
+    Use `skip_focus_tap: true` when field already has focus (auto_focus or dialog auto-focus).
+  - **Option 2** (overlay fallback): `run_command` with `adb shell input text "text"` —
+    use when a dialog/overlay blocks the focus tap. Tap the field first with `tap_at`,
+    then send text via ADB directly. Works for auth codes, PINs, AlertDialog fields.
+- `run_command` description updated with ADB text input fallback example and usage pattern.
+
+---
+
 ## [2.0.4] - 2026-03-10
 
 ### Fixed
