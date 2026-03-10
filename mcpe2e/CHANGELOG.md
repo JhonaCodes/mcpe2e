@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.0] - 2026-03-10
+
+### Fixed
+- `tap_at`, `drag_widget`, `swipe_widget`, `scroll_widget`, `set_slider_value`,
+  `long_press_widget`, `pinch_widget`, `wait` and `scroll_until_visible` no longer
+  crash with `type 'String' is not a subtype of type 'num'` when the LLM passes
+  numeric arguments as JSON strings (e.g. `"263.8"` instead of `263.8`).
+  New `_toNum`/`_toInt` helpers coerce both String and num transparently.
+
+### Added
+- `PopupMenuButton` now appears in `inspect_ui` output under INTERACTIVE with its
+  tooltip and center coordinates. Previously invisible to the LLM — it could not
+  open AppBar dropdowns without guessing coordinates.
+
+---
+
 ## [1.1.9] - 2026-03-10
 
 ### Added

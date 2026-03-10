@@ -331,6 +331,26 @@ class McpTreeInspector {
       );
     }
 
+    // ── PopupMenuButton ────────────────────────────────────────────────────
+    // Usado frecuentemente en AppBar para menús desplegables (soluciones,
+    // filtros, opciones de pantalla). Sin este bloque el LLM no lo ve en
+    // INTERACTIVE y no puede abrirlo.
+    if (widget is PopupMenuButton) {
+      final tooltip = widget.tooltip;
+      final enabled = widget.enabled;
+      return _entry(
+        'PopupMenuButton',
+        depth,
+        pos,
+        mcpKey,
+        extra: {
+          'tooltip': ?tooltip,
+          'enabled': enabled,
+        },
+        inOverlay: inOverlay,
+      );
+    }
+
     // ── Dropdown ───────────────────────────────────────────────────────────
     if (widget is DropdownButtonFormField) {
       return _entry(

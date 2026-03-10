@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0] - 2026-03-10
+
+### Fixed
+- All numeric args (`x`, `y`, `dx`, `dy`, `scale`, `value`, `duration_ms`,
+  `distance`, `max_attempts`) now accept both `num` and `String` via `_toNum`
+  helpers. Fixes `type 'String' is not a subtype of type 'num'` crash.
+
+### Added
+- `PopupMenuButton` added to `interactiveTypes` in compact `inspect_ui` output.
+
+---
+
 ## [1.1.9] - 2026-03-10
 
 ### Changed

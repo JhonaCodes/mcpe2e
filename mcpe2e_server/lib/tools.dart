@@ -770,7 +770,7 @@ Future<List<Map<String, dynamic>>> callTool(
       ),
 
     'long_press_widget' => () {
-        final ms = args['duration_ms'] as int? ?? 500;
+        final ms = _toIntOpt(args['duration_ms']) ?? 500;
         return _thenWaitIdle(
           _withCoordFallback(
             key: args['key'] as String,
@@ -785,7 +785,7 @@ Future<List<Map<String, dynamic>>> callTool(
     'swipe_widget' => () {
         final key = k(args['key'] as String);
         final dir = args['direction'] as String;
-        final dist = args['distance'] as num?;
+        final dist = _toNumOpt(args['distance']);
         final q = dist != null ? '&distance=$dist' : '';
         return bridge.get('/action?key=$key&type=swipe&direction=$dir$q').then(t);
       }(),
@@ -794,7 +794,7 @@ Future<List<Map<String, dynamic>>> callTool(
         final dir = args['direction'] as String;
         final rawKey = args['key'] as String?;
         // accept both 'amount' and 'distance' as aliases
-        final dist = ((args['amount'] as num?) ?? (args['distance'] as num?) ?? 300).toDouble();
+        final dist = (_toNumOpt(args['amount']) ?? _toNumOpt(args['distance']) ?? 300).toDouble();
 
         // No key → ADB swipe directly (no registered widget needed)
         if (rawKey == null || rawKey.isEmpty) {
@@ -834,8 +834,8 @@ Future<List<Map<String, dynamic>>> callTool(
       }(),
 
     'tap_at' => () {
-        final x = args['x'] as num;
-        final y = args['y'] as num;
+        final x = _toNum(args['x']);
+        final y = _toNum(args['y']);
         return _thenWaitIdle(
           bridge.get('/action?key=_&type=tapat&dx=$x&dy=$y').then(t),
           bridge,
@@ -960,7 +960,7 @@ Future<List<Map<String, dynamic>>> callTool(
       }(),
 
     'set_slider_value' => () {
-        final val = args['value'] as num;
+        final val = _toNum(args['value']);
         return bridge.get('/action?key=${k(args['key'])}&type=setslidervalue&sliderValue=$val').then(t);
       }(),
 
@@ -979,13 +979,13 @@ Future<List<Map<String, dynamic>>> callTool(
     'scroll_until_visible' => () {
         final key = k(args['key'] as String);
         final target = Uri.encodeQueryComponent(args['target_key'] as String);
-        final maxA = args['max_attempts'] as int? ?? 20;
+        final maxA = _toIntOpt(args['max_attempts']) ?? 20;
         return bridge.get('/action?key=$key&type=scrolluntilvisible&targetKey=$target&maxScrollAttempts=$maxA').then(t);
       }(),
 
     // ── Utilidades ────────────────────────────────────────────────────────────
     'wait' => () async {
-        final ms = args['duration_ms'] as int;
+        final ms = _toInt(args['duration_ms']);
         await Future.delayed(Duration(milliseconds: ms));
         return t(jsonEncode({'ok': true, 'waited_ms': ms}));
       }(),
@@ -1026,16 +1026,16 @@ Future<List<Map<String, dynamic>>> callTool(
 
     // ── Drag, pinch, show keyboard ────────────────────────────────────────────
     'drag_widget' => () {
-        final ms = args['duration_ms'] as int? ?? 500;
-        final dx = args['dx'] as num;
-        final dy = args['dy'] as num;
+        final ms = _toIntOpt(args['duration_ms']) ?? 500;
+        final dx = _toNum(args['dx']);
+        final dy = _toNum(args['dy']);
         return bridge.get(
           '/action?key=${k(args['key'])}&type=drag&deltaX=$dx&deltaY=$dy&duration=$ms',
         ).then(t);
       }(),
 
     'pinch_widget' => () {
-        final scale = args['scale'] as num;
+        final scale = _toNum(args['scale']);
         return bridge.get(
           '/action?key=${k(args['key'])}&type=pinch&scale=$scale',
         ).then(t);
@@ -1278,7 +1278,7 @@ String _compactTree(String rawJson) {
     const interactiveTypes = {
       'ElevatedButton', 'TextButton', 'OutlinedButton', 'FilledButton',
       'IconButton', 'TextField', 'TextFormField', 'Checkbox', 'Switch',
-      'Radio', 'Slider', 'DropdownButtonFormField',
+      'Radio', 'Slider', 'DropdownButtonFormField', 'PopupMenuButton',
     };
 
     final mainInteractive = <Map<String, dynamic>>[];
@@ -1407,6 +1407,7 @@ String _widgetLabel(Map<String, dynamic> w) {
       final val = w['value'] as String?;
       return val != null && val.isNotEmpty ? '"$val"' : '';
     case 'IconButton':
+    case 'PopupMenuButton':
       final tip = w['tooltip'] as String?;
       return tip != null ? '[$tip]' : '';
     default:
@@ -1414,6 +1415,26 @@ String _widgetLabel(Map<String, dynamic> w) {
       return label != null && label.isNotEmpty ? '"$label"' : '';
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Numeric coercion helpers
+//
+// The LLM occasionally serialises numbers as JSON strings (e.g. "263.8").
+// These helpers accept both num and String so every numeric arg is safe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Coerces a value from MCP args to [num].
+/// Accepts both numeric values and string representations.
+num _toNum(dynamic v) => v is num ? v : num.parse(v.toString());
+
+/// Same but returns null when [v] is null.
+num? _toNumOpt(dynamic v) => v == null ? null : _toNum(v);
+
+/// Coerces to [int] (rounds if the value is a double or decimal string).
+int _toInt(dynamic v) => _toNum(v).round();
+
+/// Same but returns null when [v] is null.
+int? _toIntOpt(dynamic v) => v == null ? null : _toInt(v);
 
 /// Calculates the center of a widget from its x/y/w/h fields.
 /// Returns `(cx, cy)` as a string, or null if coordinates are missing.
