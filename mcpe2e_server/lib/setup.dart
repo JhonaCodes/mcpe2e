@@ -16,7 +16,7 @@ const _gr  = '\x1B[90m';
 
 // ── Agent model ───────────────────────────────────────────────────────────────
 
-enum _Format { claudeCode, json, toml }
+enum _Format { claudeCode, json, toml, opencode }
 
 class _Agent {
   final String id;
@@ -44,10 +44,11 @@ class _Setup {
   }
 
   List<_Agent> get agents => [
-        _Agent('claude_code',    'Claude Code',         '$_home/.claude.json',               _Format.claudeCode),
-        _Agent('claude_desktop', 'Claude Desktop',      _claudeDesktop,                      _Format.json),
-        _Agent('codex',          'Codex CLI (OpenAI)',  '$_home/.codex/config.toml',          _Format.toml),
-        _Agent('gemini',         'Gemini CLI (Google)', '$_home/.gemini/settings.json',       _Format.json),
+        _Agent('claude_code',    'Claude Code',         '$_home/.claude.json',                              _Format.claudeCode),
+        _Agent('claude_desktop', 'Claude Desktop',      _claudeDesktop,                                     _Format.json),
+        _Agent('codex',          'Codex CLI (OpenAI)',  '$_home/.codex/config.toml',                        _Format.toml),
+        _Agent('gemini',         'Gemini CLI (Google)', '$_home/.gemini/settings.json',                     _Format.json),
+        _Agent('opencode',       'OpenCode',            '$_home/.config/opencode/opencode.json',            _Format.opencode),
       ];
 
   // ── Status checks ───────────────────────────────────────────────────────────
@@ -58,6 +59,8 @@ class _Setup {
                             Directory(File(a.configPath).parent.path).existsSync(),
         'codex'          => _cmd('codex') || Directory('$_home/.codex').existsSync(),
         'gemini'         => _cmd('gemini') || Directory('$_home/.gemini').existsSync(),
+        'opencode'       => _cmd('opencode') ||
+                            Directory('$_home/.config/opencode').existsSync(),
         _                => false,
       };
 
@@ -67,8 +70,9 @@ class _Setup {
     try {
       final content = f.readAsStringSync();
       return switch (a.format) {
-        _Format.toml => content.contains('[mcp_servers.mcpe2e]'),
-        _            => (jsonDecode(content)?['mcpServers'] as Map?)?.containsKey('mcpe2e') ?? false,
+        _Format.toml     => content.contains('[mcp_servers.mcpe2e]'),
+        _Format.opencode => (jsonDecode(content)?['mcp'] as Map?)?.containsKey('mcpe2e') ?? false,
+        _                => (jsonDecode(content)?['mcpServers'] as Map?)?.containsKey('mcpe2e') ?? false,
       };
     } catch (_) {
       return false;
@@ -89,12 +93,14 @@ class _Setup {
         _Format.claudeCode => _enableClaude(),
         _Format.json       => _patchJson(a.configPath, add: true),
         _Format.toml       => _patchToml(a.configPath, add: true),
+        _Format.opencode   => _patchOpenCode(a.configPath, add: true),
       };
 
   void disable(_Agent a) => switch (a.format) {
         _Format.claudeCode => _disableClaude(),
         _Format.json       => _patchJson(a.configPath, add: false),
         _Format.toml       => _patchToml(a.configPath, add: false),
+        _Format.opencode   => _patchOpenCode(a.configPath, add: false),
       };
 
   void _enableClaude() {
@@ -139,6 +145,35 @@ class _Setup {
       content += '\n';
     }
     file.writeAsStringSync(content);
+  }
+
+  /// OpenCode format — uses "mcp" key (not "mcpServers"), command is an array,
+  /// and environment vars go under "environment" (not "env").
+  /// Schema: https://opencode.ai/config.json
+  void _patchOpenCode(String path, {required bool add}) {
+    final file = File(path);
+    file.parent.createSync(recursive: true);
+    Map<String, dynamic> cfg = {};
+    if (file.existsSync()) {
+      try { cfg = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>; } catch (_) {}
+    }
+    // Preserve $schema if already present
+    if (!cfg.containsKey(r'$schema')) {
+      cfg[r'$schema'] = 'https://opencode.ai/config.json';
+    }
+    final servers = (cfg['mcp'] as Map<String, dynamic>?) ?? {};
+    if (add) {
+      servers['mcpe2e'] = {
+        'type': 'local',
+        'command': [binaryPath],
+        'environment': {'TESTBRIDGE_URL': bridgeUrl},
+        'enabled': true,
+      };
+    } else {
+      servers.remove('mcpe2e');
+    }
+    cfg['mcp'] = servers;
+    file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(cfg) + '\n');
   }
 }
 
