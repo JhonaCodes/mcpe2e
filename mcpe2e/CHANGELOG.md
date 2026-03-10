@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.1.7] - 2026-03-10
+
+### Fixed
+- `inspect_ui` no longer crashes with `Converting object to an encodable object failed: NaN`
+  during UI transitions (language change, settings screens, mid-layout rebuilds).
+- `_position()` now discards widget coordinates that are not finite — if a `RenderBox` exists
+  but layout has not completed, the widget appears in the tree without `x/y/w/h` instead of
+  crashing the JSON encoder.
+- Added recursive JSON sanitizer (`sanitizeList/Map/Value`) applied to the full `inspect()`
+  output before returning — catches any non-finite double from any source (Slider.value,
+  partial transforms, etc.) and converts it to `null` so `jsonEncode` always succeeds.
+
+### Added
+- 33 regression tests for `McpTreeInspector` (`test/core/tree_inspector_test.dart`):
+  - Group A (6): `round()` — rounding precision + NaN/Inf propagation.
+  - Group B (12): `sanitizeValue()` — all types, nested Maps and Lists.
+  - Group C (11): `inspect()` — widget extraction for Text, TextField, ElevatedButton,
+    AppBar, Checkbox, Switch; empty tree; structural consistency.
+  - Group D (4): JSON regression — `jsonEncode(inspect())` must never throw.
+- `docs/writing-tests.md` — LLM guide for writing script-mode and goal-mode tests,
+  including templates, timing heuristics, decision tree, and coordinate calculation rules.
+
+### Changed
+- Internal sanitize helpers and `round()` exposed as `@visibleForTesting` static methods
+  for direct unit testing without requiring a widget tree.
+
+---
+
 ## [1.1.6] - 2026-03-10
 
 ### Changed

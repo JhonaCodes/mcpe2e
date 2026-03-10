@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.7] - 2026-03-10
+
+### Changed
+- Version sync with mcpe2e v1.1.7 — NaN fix in `inspect_ui` + regression tests.
+
+---
+
 ## [1.1.6] - 2026-03-10
 
 ### Added

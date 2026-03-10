@@ -36,6 +36,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ignore_for_file: deprecated_member_use
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../events/mcp_metadata_key.dart';
@@ -77,10 +78,15 @@ class McpTreeInspector {
     final result = <Map<String, dynamic>>[];
     _walk(root, 0, result);
 
+    // Sanitizar TODO el resultado antes de retornar: cualquier double NaN o
+    // Infinite (de posiciones, Slider.value/min/max, etc.) se convierte en null
+    // para que jsonEncode nunca falle por valores no serializables.
+    final sanitized = sanitizeList(result);
+
     return {
       'timestamp': DateTime.now().toUtc().toIso8601String(),
-      'widget_count': result.length,
-      'widgets': result,
+      'widget_count': sanitized.length,
+      'widgets': sanitized,
     };
   }
 
@@ -463,18 +469,24 @@ class McpTreeInspector {
   }
 
   /// Obtiene la posición y tamaño del widget en coordenadas de pantalla.
+  ///
+  /// Retorna null si el widget no está montado, si el layout no se ha completado,
+  /// o si alguna coordenada es NaN / Infinite (puede ocurrir durante transiciones
+  /// como cambios de idioma donde el árbol se reconstruye mid-frame).
   static Map<String, double>? _position(Element element) {
     try {
       final ro = element.renderObject;
       if (ro is! RenderBox || !ro.attached) return null;
       final offset = ro.localToGlobal(Offset.zero);
       final size = ro.size;
-      return {
-        'x': _round(offset.dx),
-        'y': _round(offset.dy),
-        'w': _round(size.width),
-        'h': _round(size.height),
-      };
+      final x = round(offset.dx);
+      final y = round(offset.dy);
+      final w = round(size.width);
+      final h = round(size.height);
+      // Descartar si alguna coordenada no es un número finito válido.
+      // Ocurre cuando el RenderBox existe pero el layout aún no terminó.
+      if (!x.isFinite || !y.isFinite || !w.isFinite || !h.isFinite) return null;
+      return {'x': x, 'y': y, 'w': w, 'h': h};
     } catch (_) {
       return null;
     }
@@ -516,5 +528,40 @@ class McpTreeInspector {
   }
 
   /// Redondea a 1 decimal para reducir ruido en las coordenadas.
-  static double _round(double v) => (v * 10).roundToDouble() / 10;
+  ///
+  /// Propaga NaN/Infinite tal cual — [_position] los detecta con `.isFinite`
+  /// antes de incluir las coordenadas en el resultado.
+  @visibleForTesting
+  static double round(double v) {
+    if (!v.isFinite) return v;
+    return (v * 10).roundToDouble() / 10;
+  }
+
+  // ── Sanitización para JSON ─────────────────────────────────────────────────
+
+  /// Convierte recursivamente cualquier double no finito (NaN, Infinite) en null.
+  ///
+  /// Necesario porque jsonEncode no acepta NaN ni Infinite. Los NaN pueden venir
+  /// de posiciones de widgets mid-layout (transiciones, cambios de idioma) o de
+  /// propiedades de widgets como Slider.value/min/max cuando aún no están
+  /// inicializados correctamente.
+  ///
+  /// Uso fuera de tests no recomendado — llamar solo a través de [inspect].
+  @visibleForTesting
+  static List<Map<String, dynamic>> sanitizeList(
+    List<Map<String, dynamic>> list,
+  ) => list.map(sanitizeMap).toList();
+
+  @visibleForTesting
+  static Map<String, dynamic> sanitizeMap(Map<String, dynamic> map) {
+    return map.map((key, value) => MapEntry(key, sanitizeValue(value)));
+  }
+
+  @visibleForTesting
+  static dynamic sanitizeValue(dynamic value) {
+    if (value is double && !value.isFinite) return null;
+    if (value is Map<String, dynamic>) return sanitizeMap(value);
+    if (value is List) return value.map(sanitizeValue).toList();
+    return value;
+  }
 }
