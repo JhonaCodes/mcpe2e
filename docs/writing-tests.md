@@ -304,3 +304,46 @@ Recommended order within a screen's test suite:
 
 This order moves from the most common case to the most specific, making it easier to
 identify regressions: if `happy_path` fails, skip the rest until it is fixed.
+
+---
+
+## Section 10 — Suggested: widget keys for overlaid surfaces
+
+The coordinate-based approach (`inspect_ui` → `tap_at`) works for the entire app without
+any widget registration. However, for widgets that appear as a layer on top of the main
+screen — dialogs, bottom sheets, drawers, and snackbars — we suggest adding a
+`McpMetadataKey`. These surfaces are rendered in a separate overlay entry; their
+coordinates can shift during animations, making coordinate-based taps less reliable.
+
+With a key, the LLM uses `tap_widget key: "modal.confirm.submit"` instead of calculating
+and chasing coordinates through `inspect_ui` while the overlay is animating in.
+
+**Where to add keys (suggestion only — not required):**
+
+| Surface | Example key |
+|---------|-------------|
+| Confirmation dialog action | `modal.confirm.submit`, `modal.confirm.cancel` |
+| Bottom sheet primary action | `sheet.<module>.submit` |
+| Navigation drawer | `nav.drawer` |
+| Snackbar action | `snackbar.undo`, `snackbar.retry` |
+| Tooltip / Popover trigger | `tooltip.<name>` |
+
+```dart
+// Bottom sheet submit button
+ElevatedButton(
+  key: const McpMetadataKey(id: 'sheet.bid.submit'),
+  onPressed: _submitBid,
+  child: const Text('Place Bid'),
+)
+
+// AlertDialog confirm action
+TextButton(
+  key: const McpMetadataKey(id: 'modal.confirm.delete'),
+  onPressed: _confirmDelete,
+  child: const Text('Delete'),
+)
+```
+
+For the main screen body (lists, forms, cards) coordinate-based interaction is preferred
+since those widgets are stable in the viewport and keys would add unnecessary noise to the
+widget tree.

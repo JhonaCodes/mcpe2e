@@ -219,6 +219,46 @@ settings.dark_mode         Dark mode toggle
 modal.confirm.delete       Confirmation dialog
 ```
 
+### Recommended: add keys to overlaid widgets
+
+The coordinate-based approach works for most of the app without any widget registration.
+However, we recommend adding `McpMetadataKey` to widgets that appear as layers on top of
+the main screen — dialogs, bottom sheets, drawers, and snackbars. These widgets are
+rendered in a separate overlay entry and their coordinates can shift depending on animation
+state, making coordinate-based taps less reliable.
+
+Suggested keys for overlaid surfaces:
+
+```dart
+// Confirmation dialog
+AlertDialog(
+  key: const McpMetadataKey(id: 'modal.confirm.delete'),
+  ...
+)
+
+// Bottom sheet actions
+ElevatedButton(
+  key: const McpMetadataKey(id: 'sheet.bid.submit'),
+  ...
+)
+
+// Navigation drawer
+Drawer(
+  key: const McpMetadataKey(id: 'nav.drawer'),
+  ...
+)
+
+// Snackbar action button
+SnackBarAction(
+  key: const McpMetadataKey(id: 'snackbar.undo'),
+  ...
+)
+```
+
+This is a suggestion, not a requirement. The agent can still interact with these widgets
+using `tap_at` and coordinates from `inspect_ui` — keys just make those interactions more
+stable and readable in test scripts.
+
 ---
 
 ## Managing Agents
