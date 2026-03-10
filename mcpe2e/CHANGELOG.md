@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.9] - 2026-03-10
+
+### Added
+- `docs/writing-tests.md` Section 10: recommends adding `McpMetadataKey`
+  to dialogs, bottom sheets, drawers and snackbars. Coordinates on animated
+  overlay surfaces can shift during the open animation; a key avoids that.
+- `README.md` "Recommended: add keys to overlaid widgets" subsection with
+  code examples and the explicit note that it is a suggestion, not a requirement.
+
+---
+
 ## [1.1.8] - 2026-03-10
 
 ### Added

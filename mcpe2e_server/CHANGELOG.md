@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.9] - 2026-03-10
+
+### Changed
+- Version sync con mcpe2e v1.1.9 — docs overlay keys recommendation.
+
+---
+
 ## [1.1.8] - 2026-03-10
 
 ### Changed
