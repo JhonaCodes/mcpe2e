@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.2] - 2026-03-11
+
+### Changed
+- Version bump to 2.1.2 (sync with mcpe2e_server v2.1.2 — widget registry now
+  resolves plain `ValueKey<String>` in addition to MCP-specific keys).
+
+---
+
 ## [2.1.0] - 2026-03-10
 
 ### Changed

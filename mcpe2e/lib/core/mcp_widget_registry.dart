@@ -89,20 +89,25 @@ class McpWidgetRegistry {
   /// If the widget was scrolled out of the viewport but is still mounted,
   /// the context exists but the widget may not be visible.
   ///
-  /// Dual strategy:
+  /// Triple strategy:
   /// 1. Internal GlobalKey (original flow with getGlobalKey)
   /// 2. Element-tree walk searching for McpMetadataKey with that id (direct flow)
+  /// 3. Element-tree walk searching for ValueKey<String> with matching value
   BuildContext? getContext(String id) {
     // Strategy 1: Internal GlobalKey
     final ctx = _widgets[id]?.globalKey.currentContext;
     if (ctx != null) return ctx;
 
-    // Strategy 2: walk the tree searching for McpMetadataKey
+    // Strategy 2 & 3: walk the tree searching for matching key
     BuildContext? found;
     void visit(Element el) {
       if (found != null) return;
       final key = el.widget.key;
       if (key is McpMetadataKey && key.id == id) {
+        found = el;
+        return;
+      }
+      if (key is ValueKey<String> && key.value == id) {
         found = el;
         return;
       }
@@ -114,26 +119,27 @@ class McpWidgetRegistry {
 
   /// Returns the RenderBox of the widget, needed to calculate position and size.
   ///
-  /// Dual strategy:
+  /// Triple strategy:
   /// 1. If the widget uses [getGlobalKey] as key → uses globalKey.currentContext
-  /// 2. If the widget uses [McpMetadataKey] directly as key → walks the element
-  ///    tree looking for the first element whose widget.key has the same id,
-  ///    then returns its first descendant RenderBox.
+  /// 2. If the widget uses [McpMetadataKey] directly as key → walks the element tree
+  /// 3. If the widget uses [ValueKey<String>] with matching value → walks the element tree
   RenderBox? getRenderBox(String id) {
-    // Strategy 1: Internal GlobalKey (original flow)
+    // Strategy 1: via getContext (covers GlobalKey, McpMetadataKey, and ValueKey)
     final context = getContext(id);
     if (context != null) {
       final rb = context.findRenderObject() as RenderBox?;
       if (rb != null) return rb;
     }
 
-    // Strategy 2: McpMetadataKey used directly in the tree
+    // Strategy 2: deep search for first RenderBox in subtree
     RenderBox? found;
 
     void visitElement(Element el) {
       if (found != null) return;
       final key = el.widget.key;
-      if (key is McpMetadataKey && key.id == id) {
+      final matches = (key is McpMetadataKey && key.id == id) ||
+          (key is ValueKey<String> && key.value == id);
+      if (matches) {
         found = _firstRenderBox(el);
         return;
       }

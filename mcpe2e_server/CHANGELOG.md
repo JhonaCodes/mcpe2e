@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.1.2] - 2026-03-11
+
+### Added
+- `mcpe2e` widget lookup now accepts plain `ValueKey<String>` in addition to
+  `McpMetadataKey` and internal `GlobalKey` resolution. This makes `inspect_ui`,
+  tap and geometry-driven actions work on apps that already expose conventional
+  Flutter keys without requiring MCP-specific key wrappers.
+
+---
+
 ## [2.1.0] - 2026-03-10
 
 ### Added
