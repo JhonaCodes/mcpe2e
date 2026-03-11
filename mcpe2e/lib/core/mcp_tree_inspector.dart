@@ -110,8 +110,16 @@ class McpTreeInspector {
     final enteringOverlay = !inOverlay && _isOverlayContainer(widget);
     final childInOverlay = inOverlay || enteringOverlay;
 
-    // Extraer datos si es un widget con información relevante
-    final entry = _extract(widget, element, depth, inOverlay: childInOverlay);
+    // Extraer datos si es un widget con información relevante.
+    // try-catch: generic widgets (Radio<T>, PopupMenuButton<T>, etc.) can
+    // throw TypeErrors due to Dart's function contravariance when accessed
+    // via a bare `is` check that erases the type parameter to `dynamic`.
+    Map<String, dynamic>? entry;
+    try {
+      entry = _extract(widget, element, depth, inOverlay: childInOverlay);
+    } catch (_) {
+      entry = null;
+    }
     if (entry != null) result.add(entry);
 
     // Siempre continuar recursión, excepto en nodos cuya info
@@ -299,6 +307,11 @@ class McpTreeInspector {
     }
 
     if (widget is Radio) {
+      // Radio<T> is generic — accessing onChanged after a bare `is Radio`
+      // (which erases T to dynamic) can throw a TypeError due to function
+      // contravariance. Wrap in try-catch.
+      bool enabled;
+      try { enabled = widget.onChanged != null; } catch (_) { enabled = true; }
       return _entry(
         'Radio',
         depth,
@@ -308,7 +321,7 @@ class McpTreeInspector {
           'value': widget.value?.toString(),
           'groupValue': widget.groupValue?.toString(),
           'selected': widget.value == widget.groupValue,
-          'enabled': widget.onChanged != null,
+          'enabled': enabled,
         },
         inOverlay: inOverlay,
       );
@@ -335,9 +348,15 @@ class McpTreeInspector {
     // Usado frecuentemente en AppBar para menús desplegables (soluciones,
     // filtros, opciones de pantalla). Sin este bloque el LLM no lo ve en
     // INTERACTIVE y no puede abrirlo.
+    // PopupMenuButton<T> and DropdownButtonFormField<T> are generic —
+    // property access can throw TypeError due to Dart's type erasure.
     if (widget is PopupMenuButton) {
-      final tooltip = widget.tooltip;
-      final enabled = widget.enabled;
+      String? tooltip;
+      bool enabled = true;
+      try {
+        tooltip = widget.tooltip;
+        enabled = widget.enabled;
+      } catch (_) {}
       return _entry(
         'PopupMenuButton',
         depth,
@@ -353,12 +372,14 @@ class McpTreeInspector {
 
     // ── Dropdown ───────────────────────────────────────────────────────────
     if (widget is DropdownButtonFormField) {
+      String? value;
+      try { value = widget.initialValue?.toString(); } catch (_) {}
       return _entry(
         'DropdownButtonFormField',
         depth,
         pos,
         mcpKey,
-        extra: {'value': ?widget.initialValue?.toString()},
+        extra: {'value': ?value},
         inOverlay: inOverlay,
       );
     }

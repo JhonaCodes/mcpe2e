@@ -1017,8 +1017,11 @@ Future<List<Map<String, dynamic>>> callTool(
 
           if (backWidget.isNotEmpty) {
             // Tap the visual back button instead of the system event
-            final x  = (backWidget['x'] as num).toDouble();
-            final y  = (backWidget['y'] as num).toDouble();
+            final xVal = backWidget['x'] as num?;
+            final yVal = backWidget['y'] as num?;
+            if (xVal == null || yVal == null) throw Exception('missing coords');
+            final x  = xVal.toDouble();
+            final y  = yVal.toDouble();
             final w  = (backWidget['w'] as num?)?.toDouble() ?? 48;
             final h  = (backWidget['h'] as num?)?.toDouble() ?? 48;
             final cx = (x + w / 2).round();
@@ -1340,240 +1343,73 @@ String _compactTree(String rawJson) {
 
     if (all.isEmpty) return 'Screen: empty (0 widgets)';
 
-    // AppBar title → screen name
+    // ── Screen name: AppBar title → first Text at depth ≤ 3 → "unknown"
     final appBar = all.where((w) => w['type'] == 'AppBar').firstOrNull;
-    final screen = appBar?['title'] as String? ?? 'unknown';
-
-    const interactiveTypes = {
-      // Buttons
-      'ElevatedButton', 'TextButton', 'OutlinedButton', 'FilledButton',
-      'FilledButton.tonal', 'FloatingActionButton', 'FloatingActionButton.extended',
-      'IconButton', 'BackButton', 'CloseButton', 'DrawerButton',
-      'CupertinoButton',
-      // Text input
-      'TextField', 'TextFormField', 'CupertinoTextField', 'SearchBar',
-      'SearchAnchor',
-      // Toggles
-      'Checkbox', 'CheckboxListTile', 'Switch', 'SwitchListTile',
-      'Radio', 'RadioListTile', 'CupertinoSwitch',
-      // Sliders / pickers
-      'Slider', 'RangeSlider', 'CupertinoSlider',
-      'DatePicker', 'TimePicker', 'CupertinoDatePicker', 'CupertinoTimerPicker',
-      // Dropdowns / menus
-      'DropdownButton', 'DropdownButtonFormField', 'DropdownMenu',
-      'PopupMenuButton', 'MenuAnchor', 'SubmenuButton', 'MenuItemButton',
-      // Chips (interactive variants)
-      'ActionChip', 'FilterChip', 'ChoiceChip', 'InputChip', 'Chip',
-      // List items (tappable)
-      'ListTile', 'ExpansionTile',
-      // Navigation tabs / steps
-      'Tab', 'BottomNavigationBarItem', 'NavigationDestination',
-      'Step', 'Stepper',
-      // Segmented
-      'SegmentedButton', 'CupertinoSegmentedControl',
-      'CupertinoSlidingSegmentedControl',
-    };
-
-    final mainInteractive = <Map<String, dynamic>>[];
-    final mainText        = <Map<String, dynamic>>[];
-    final overlayNodes    = <Map<String, dynamic>>[];  // dialogs + their children
-    final loading         = <Map<String, dynamic>>[];
-    final otherWidgets    = <Map<String, dynamic>>[];  // custom/third-party widgets
-
-    // Types that are structural noise (containers, layout, rendering) — not shown in OTHER.
-    // Anything NOT in this set and NOT in interactiveTypes / Text / AppBar / loading
-    // will appear in the OTHER section so the LLM can see custom/third-party widgets.
-    const structuralTypes = {
-      // ── Layout multi-child ────────────────────────────────────────────────
-      'Column', 'Row', 'Stack', 'Flex', 'Wrap', 'Flow', 'Table',
-      'IndexedStack', 'CustomMultiChildLayout', 'OverflowBar',
-      // ── Layout single-child ───────────────────────────────────────────────
-      'Container', 'SizedBox', 'Padding', 'Align', 'Center',
-      'Expanded', 'Flexible', 'Spacer', 'Positioned', 'PositionedDirectional',
-      'ConstrainedBox', 'UnconstrainedBox', 'OverflowBox', 'SizedOverflowBox',
-      'FractionallySizedBox', 'LimitedBox', 'AspectRatio', 'FittedBox',
-      'Baseline', 'IntrinsicHeight', 'IntrinsicWidth',
-      'CustomSingleChildLayout', 'Offstage', 'PhysicalModel',
-      'Transform', 'RotatedBox', 'FractionalTranslation',
-      // ── Scroll ────────────────────────────────────────────────────────────
-      'SingleChildScrollView', 'CustomScrollView', 'NestedScrollView',
-      'PageView', 'Scrollable', 'ScrollView', 'PrimaryScrollController',
-      'ScrollConfiguration', 'ScrollNotificationObserver',
-      'RawScrollbar', 'Scrollbar',
-      // ── Slivers ───────────────────────────────────────────────────────────
-      'SliverList', 'SliverGrid', 'SliverAppBar', 'SliverToBoxAdapter',
-      'SliverFillRemaining', 'SliverPadding', 'SliverFixedExtentList',
-      'SliverPrototypeExtentList', 'SliverAnimatedList', 'SliverAnimatedGrid',
-      'SliverFillViewport', 'SliverPersistentHeader',
-      'SliverOverlapAbsorber', 'SliverOverlapInjector',
-      'SliverLayoutBuilder', 'CupertinoSliverNavigationBar',
-      // ── Animation ─────────────────────────────────────────────────────────
-      'AnimatedContainer', 'AnimatedOpacity', 'AnimatedAlign',
-      'AnimatedCrossFade', 'AnimatedDefaultTextStyle',
-      'AnimatedList', 'AnimatedGrid', 'AnimatedPositioned',
-      'AnimatedPositionedDirectional', 'AnimatedSize', 'AnimatedSwitcher',
-      'AnimatedPhysicalModel', 'AnimatedTheme', 'AnimatedBuilder',
-      'AnimatedWidget', 'TweenAnimationBuilder',
-      'DecoratedBoxTransition', 'FadeTransition', 'PositionedTransition',
-      'RotationTransition', 'ScaleTransition', 'SizeTransition', 'SlideTransition',
-      // ── Clip / Paint ──────────────────────────────────────────────────────
-      'ClipRect', 'ClipRRect', 'ClipOval', 'ClipPath',
-      'DecoratedBox', 'ColoredBox', 'CustomPaint',
-      'BackdropFilter', 'ShaderMask',
-      // ── Opacity / Visibility ──────────────────────────────────────────────
-      'Opacity', 'Visibility',
-      // ── Interaction wrappers (not buttons) ────────────────────────────────
-      'GestureDetector', 'InkWell', 'InkResponse', 'MouseRegion',
-      'RawGestureDetector', 'Listener', 'AbsorbPointer', 'IgnorePointer',
-      'Focus', 'FocusScope', 'FocusTraversalGroup',
-      'Actions', 'Shortcuts', 'KeyboardListener', 'RawKeyboardListener',
-      'TapRegion', 'TextFieldTapRegion',
-      // ── Navigation / Routing ──────────────────────────────────────────────
-      'Navigator', 'Overlay', 'WillPopScope', 'PopScope',
-      // ── Semantics ─────────────────────────────────────────────────────────
-      'Semantics', 'MergeSemantics', 'ExcludeSemantics',
-      'BlockSemantics', 'IndexedSemantics',
-      // ── State / Lifecycle / DI ────────────────────────────────────────────
-      'Builder', 'StatefulBuilder', 'LayoutBuilder', 'OrientationBuilder',
-      'FutureBuilder', 'StreamBuilder', 'ValueListenableBuilder',
-      'NotificationListener', 'MediaQuery', 'Theme', 'DefaultTextStyle',
-      'Directionality', 'Localizations', 'DefaultAssetBundle',
-      'DefaultSelectionStyle',
-      // ── Scaffold / Navigation shell ───────────────────────────────────────
-      'Scaffold', 'SafeArea', 'Material', 'Ink',
-      'BottomAppBar', 'BottomNavigationBar', 'NavigationBar',
-      'NavigationDrawer', 'NavigationRail', 'Drawer', 'DrawerHeader',
-      'TabBar', 'TabBarView', 'DefaultTabController',
-      'CupertinoTabBar', 'CupertinoTabScaffold', 'CupertinoPageScaffold',
-      'CupertinoNavigationBar',
-      // ── Pure visual / non-interactive ────────────────────────────────────
-      'Icon', 'Image', 'RawImage', 'Placeholder', 'CircleAvatar',
-      'Divider', 'VerticalDivider', 'Badge',
-      'RepaintBoundary', 'Hero', 'Tooltip', 'Banner',
-      'InteractiveViewer', 'MagnificationGesture',
-      // ── Misc ─────────────────────────────────────────────────────────────
-      'KeyedSubtree', 'ColorScheme', 'SelectionArea',
-      'AutofillGroup', 'RestorationScope', 'UnmanagedRestorationScope',
-      'ScrollPositionWithSingleContext',
-    };
-
-    for (final w in all) {
-      final type      = w['type'] as String;
-      final isOverlay = w['overlay'] as bool? ?? false;
-      final isLoading = w['loading'] as bool? ?? false;
-
-      if (isLoading) { loading.add(w); continue; }
-      if (type == 'AppBar') continue; // shown in header
-
-      if (isOverlay) {
-        overlayNodes.add(w);
-      } else if (interactiveTypes.contains(type)) {
-        mainInteractive.add(w);
-      } else if (type == 'Text') {
-        mainText.add(w);
-      } else if (!structuralTypes.contains(type)) {
-        // Custom / third-party widgets — include if they have coordinates
-        final hasCoords = w['x'] != null && w['y'] != null;
-        if (hasCoords) otherWidgets.add(w);
-      }
+    String screen = appBar?['title'] as String? ?? '';
+    if (screen.isEmpty) {
+      final shallow = all.where((w) =>
+          w['type'] == 'Text' &&
+          (w['depth'] as int? ?? 99) <= 3 &&
+          (w['value'] as String? ?? '').isNotEmpty);
+      screen = shallow.isNotEmpty
+          ? shallow.first['value'] as String
+          : 'unknown';
     }
 
+    // ── Separate: main, overlay, loading
+    final main    = <Map<String, dynamic>>[];
+    final overlay = <Map<String, dynamic>>[];
+    final loading = <Map<String, dynamic>>[];
+
+    for (final w in all) {
+      if (w['type'] == 'AppBar') continue; // already in header
+      if (w['loading'] as bool? ?? false) { loading.add(w); continue; }
+      if (w['overlay'] as bool? ?? false) { overlay.add(w); continue; }
+      main.add(w);
+    }
+
+    // ── Build output: flat, one line per widget
     final buf = StringBuffer();
     buf.writeln('Screen: $screen (${all.length} widgets)');
 
-    // ── INTERACTIVE ──────────────────────────────────────────────────────────
-    if (mainInteractive.isNotEmpty) {
-      buf.writeln();
-      buf.writeln('INTERACTIVE:');
-      for (final w in mainInteractive) {
-        buf.writeln(_widgetLine(w, showDepth: false));
+    for (final w in main) {
+      buf.writeln(_compactLine(w));
+    }
+
+    if (overlay.isNotEmpty) {
+      buf.writeln('---overlay---');
+      for (final w in overlay) {
+        buf.writeln(_compactLine(w));
       }
     }
 
-    // ── TEXT ─────────────────────────────────────────────────────────────────
-    final textValues = mainText
-        .map((w) => w['value'] as String? ?? '')
-        .where((v) => v.isNotEmpty)
-        .toList();
-    if (textValues.isNotEmpty) {
-      buf.writeln();
-      buf.writeln('TEXT:');
-      for (final v in textValues) {
-        buf.writeln('  "$v"');
-      }
-    }
-
-    // ── OVERLAY ──────────────────────────────────────────────────────────────
-    if (overlayNodes.isNotEmpty) {
-      // Find the minimum depth of the overlay section (dialog container depth)
-      final depths = overlayNodes
-          .map((w) => w['depth'] as int? ?? 0)
-          .toList()..sort();
-      final baseDepth = depths.first;
-      buf.writeln();
-      buf.writeln('OVERLAY [depth: $baseDepth]:');
-      for (final w in overlayNodes) {
-        final type = w['type'] as String;
-        // Show container widgets (AlertDialog, BottomSheet, SnackBar)
-        if (type == 'AlertDialog' || type == 'BottomSheet' || type == 'SnackBar') {
-          final title = w['title'] as String? ?? w['content'] as String? ?? '';
-          buf.writeln('  $type${title.isNotEmpty ? "  \"$title\"" : ""}');
-        } else if (interactiveTypes.contains(type)) {
-          buf.writeln(_widgetLine(w, showDepth: true));
-        } else if (type == 'Text') {
-          final val = w['value'] as String? ?? '';
-          if (val.isNotEmpty) buf.writeln('  Text  "$val"');
-        }
-      }
-    }
-
-    // ── OTHER (custom / third-party widgets) ─────────────────────────────────
-    if (otherWidgets.isNotEmpty) {
-      buf.writeln();
-      buf.writeln('OTHER (custom widgets — use tap_at with coordinates):');
-      for (final w in otherWidgets) {
-        final type   = w['type'] as String;
-        final center = _centerCoords(w);
-        final key    = w['key'] as String?;
-        final label  = w['label'] as String? ?? w['value'] as String? ?? w['hint'] as String?;
-        final parts  = StringBuffer('  $type');
-        if (key != null && key.isNotEmpty)     parts.write('  key:"$key"');
-        if (label != null && label.isNotEmpty) parts.write('  "$label"');
-        if (center != null) parts.write('  →  tap_at$center');
-        buf.writeln(parts.toString());
-      }
-    }
-
-    // ── LOADING ──────────────────────────────────────────────────────────────
-    buf.writeln();
-    buf.write('LOADING: ');
-    buf.writeln(
-      loading.isEmpty
-          ? 'none'
-          : loading.map((w) => w['type'] as String).join(', '),
-    );
+    buf.write('---loading--- ');
+    buf.writeln(loading.isEmpty
+        ? 'none'
+        : loading.map((w) => w['type'] as String).join(', '));
 
     return buf.toString().trimRight();
   } catch (_) {
-    return rawJson; // fallback: raw JSON on any parse error
+    return rawJson;
   }
 }
 
 /// Formats a single widget as a compact one-liner.
 ///
-/// Format: `  Type  label  →  tap_at(cx, cy)  [disabled]  [depth:N]`
-String _widgetLine(Map<String, dynamic> w, {required bool showDepth}) {
+/// Format: `  Type  label  →  tap_at(cx, cy)  [disabled]  [auto_focus]`
+String _compactLine(Map<String, dynamic> w) {
   final type    = w['type'] as String;
   final enabled = w['enabled'] as bool? ?? true;
-  final depth   = w['depth'] as int?;
   final label   = _widgetLabel(w);
   final center  = _centerCoords(w);
+  final key     = w['key'] as String?;
 
   final parts = StringBuffer('  $type');
+  if (key != null && key.isNotEmpty) parts.write('  key:"$key"');
   if (label.isNotEmpty) parts.write('  $label');
   if (center != null)   parts.write('  →  tap_at$center');
   if (!enabled)         parts.write('  [disabled]');
-  if (showDepth && depth != null) parts.write('  [depth:$depth]');
+  if (w['auto_focus'] as bool? ?? false) parts.write('  [auto_focus]');
   return parts.toString();
 }
 
@@ -1598,10 +1434,24 @@ String _widgetLabel(Map<String, dynamic> w) {
     case 'DropdownButtonFormField':
       final val = w['value'] as String?;
       return val != null && val.isNotEmpty ? '"$val"' : '';
+    case 'Text':
+      final val = w['value'] as String?;
+      return val != null && val.isNotEmpty ? '"$val"' : '';
     case 'IconButton':
     case 'PopupMenuButton':
       final tip = w['tooltip'] as String?;
       return tip != null ? '[$tip]' : '';
+    case 'AlertDialog':
+      final title = w['title'] as String?;
+      return title != null && title.isNotEmpty ? '"$title"' : '';
+    case 'BottomSheet':
+      return '';
+    case 'SnackBar':
+      final content = w['content'] as String?;
+      return content != null && content.isNotEmpty ? '"$content"' : '';
+    case 'Image':
+      final sem = w['semanticLabel'] as String?;
+      return sem != null && sem.isNotEmpty ? '[$sem]' : '';
     default:
       final label = w['label'] as String?;
       return label != null && label.isNotEmpty ? '"$label"' : '';
