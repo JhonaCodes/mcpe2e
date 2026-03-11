@@ -158,6 +158,18 @@ class McpServer {
                     'Request this prompt before starting any E2E task to understand how to use the tools effectively.',
                 'arguments': [],
               },
+              {
+                'name': 'mcpe2e_writing_tests',
+                'description':
+                    'How to write E2E tests: SCRIPT vs GOAL modes, templates, key context tables, timing heuristics.',
+                'arguments': [],
+              },
+              {
+                'name': 'mcpe2e_widget_keys',
+                'description':
+                    'Widget key convention for reliable E2E testing: naming, McpMetadataKey, when to use keys vs coordinates.',
+                'arguments': [],
+              },
             ],
           },
         };
@@ -165,7 +177,22 @@ class McpServer {
       case 'prompts/get':
         final promptName =
             (req['params'] as Map<String, dynamic>?)?['name'] as String? ?? '';
-        if (promptName != 'mcpe2e_workflow') {
+        final (String desc, String content) = switch (promptName) {
+          'mcpe2e_workflow' => (
+            'mcpe2e Flutter E2E workflow guide and agent protocol',
+            kMcpe2eWorkflowSkill,
+          ),
+          'mcpe2e_writing_tests' => (
+            'How to write E2E tests: SCRIPT vs GOAL modes, templates, timing',
+            kMcpe2eWritingTestsSkill,
+          ),
+          'mcpe2e_widget_keys' => (
+            'Widget key convention: naming, McpMetadataKey, keys vs coordinates',
+            kMcpe2eWidgetKeysSkill,
+          ),
+          _ => ('', ''),
+        };
+        if (content.isEmpty) {
           return {
             'jsonrpc': '2.0',
             'id': id,
@@ -176,11 +203,11 @@ class McpServer {
           'jsonrpc': '2.0',
           'id': id,
           'result': {
-            'description': 'mcpe2e Flutter E2E workflow guide and agent protocol',
+            'description': desc,
             'messages': [
               {
                 'role': 'user',
-                'content': {'type': 'text', 'text': kMcpe2eWorkflowSkill},
+                'content': {'type': 'text', 'text': content},
               },
             ],
           },
@@ -197,7 +224,7 @@ class McpServer {
             'jsonrpc': '2.0',
             'id': id,
             'result': {
-              'content': result, // result ya es List<Map<String,dynamic>>
+              'content': result, // result is already List<Map<String,dynamic>>
             },
           };
         } catch (e) {

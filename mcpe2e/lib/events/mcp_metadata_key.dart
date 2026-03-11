@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// Tipos de widgets soportados por MCP
+/// Widget types supported by MCP
 enum McpWidgetType {
   button,
   textField,
@@ -18,25 +18,25 @@ enum McpWidgetType {
   custom,
 }
 
-/// Key con metadata completa para MCP
-/// Contiene toda la información necesaria para registro y eventos
+/// Key with full metadata for MCP
+/// Contains all the information needed for registration and events
 class McpMetadataKey extends Key {
-  /// Identificador único del widget (usado para acciones remotas)
+  /// Unique widget identifier (used for remote actions)
   final String id;
 
-  /// Tipo de widget
+  /// Widget type
   final McpWidgetType widgetType;
 
-  /// Descripción legible del widget
+  /// Human-readable widget description
   final String? description;
 
-  /// Contexto/pantalla donde se encuentra
+  /// Context / screen where the widget is located
   final String? screen;
 
-  /// Tags adicionales para búsqueda/filtrado
+  /// Additional tags for search/filtering
   final List<String>? tags;
 
-  /// Metadata adicional customizada
+  /// Additional custom metadata
   final Map<String, dynamic>? customMetadata;
 
   const McpMetadataKey({
@@ -48,7 +48,7 @@ class McpMetadataKey extends Key {
     this.customMetadata,
   }) : super.empty();
 
-  /// Obtener capabilities (acciones disponibles) basadas en el tipo de widget
+  /// Get capabilities (available actions) based on the widget type
   List<String> get capabilities {
     switch (widgetType) {
       case McpWidgetType.button:
@@ -85,8 +85,8 @@ class McpMetadataKey extends Key {
     }
   }
 
-  /// Convertir a formato esperado por MCP Server Rust
-  /// Compatible con example_widgets.json format
+  /// Convert to the format expected by the MCP Server
+  /// Compatible with example_widgets.json format
   Map<String, dynamic> toMcpFormat() {
     return {
       'key': id,
@@ -101,7 +101,7 @@ class McpMetadataKey extends Key {
     };
   }
 
-  /// Mapear McpWidgetType a nombres de widgets Flutter reales
+  /// Map McpWidgetType to actual Flutter widget names
   String _getFlutterWidgetType() {
     switch (widgetType) {
       case McpWidgetType.button:
@@ -135,10 +135,10 @@ class McpMetadataKey extends Key {
     }
   }
 
-  /// Convertir a JSON (usa formato MCP por defecto)
+  /// Convert to JSON (uses MCP format by default)
   Map<String, dynamic> toJson() => toMcpFormat();
 
-  /// Crear desde JSON (útil para testing/mocking)
+  /// Create from JSON (useful for testing/mocking)
   factory McpMetadataKey.fromJson(Map<String, dynamic> json) {
     return McpMetadataKey(
       id: json['id'] as String,

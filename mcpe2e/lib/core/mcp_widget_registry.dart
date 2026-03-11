@@ -1,17 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // McpWidgetRegistry
 //
-// Única fuente de verdad del registro de widgets testables.
-// Mantiene el mapa entre el ID semántico del widget (e.g. "auth.login_button")
-// y su GlobalKey interna, que permite obtener el BuildContext y RenderBox en
-// tiempo de ejecución para simular gestos y leer estado.
+// Single source of truth for the testable widget registry.
+// Maintains the mapping between the widget's semantic ID (e.g. "auth.login_button")
+// and its internal GlobalKey, which allows obtaining the BuildContext and RenderBox
+// at runtime to simulate gestures and read state.
 //
-// No ejecuta gestos ni conoce eventos MCP. Solo administra la colección de
-// widgets y delega la obtención de contexto al árbol de widgets de Flutter.
+// Does not execute gestures nor know about MCP events. Only manages the widget
+// collection and delegates context retrieval to the Flutter widget tree.
 //
-// Flujo:
-//   App registra widget → Registry crea GlobalKey → Widget usa esa key →
-//   Flutter la asocia al Element montado → Registry la usa para obtener context
+// Flow:
+//   App registers widget → Registry creates GlobalKey → Widget uses that key →
+//   Flutter associates it with the mounted Element → Registry uses it to get context
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/widgets.dart';
@@ -19,62 +19,62 @@ import 'package:logger_rs/logger_rs.dart';
 
 import '../events/mcp_metadata_key.dart';
 
-// ── Entrada del registro ───────────────────────────────────────────────────
+// ── Registry entry ───────────────────────────────────────────────────
 
-/// Entrada interna del registro para un widget.
-/// Combina la metadata semántica con la GlobalKey física de Flutter.
+/// Internal registry entry for a widget.
+/// Combines semantic metadata with the physical Flutter GlobalKey.
 typedef _WidgetEntry = ({McpMetadataKey metadata, GlobalKey globalKey});
 
 // ── Registry ──────────────────────────────────────────────────────────────
 
-/// Registro de widgets testables via MCP.
+/// Registry of testable widgets via MCP.
 ///
-/// Cada widget que quiera ser controlado por Claude debe registrarse aquí
-/// con un [McpMetadataKey] que define su ID, tipo y capabilities.
+/// Every widget that wants to be controlled by Claude must register here
+/// with an [McpMetadataKey] that defines its ID, type, and capabilities.
 ///
-/// El registro crea una [GlobalKey] interna que debe asignarse al widget
-/// en el árbol de Flutter para que el executor pueda obtener su context.
+/// The registry creates an internal [GlobalKey] that must be assigned to the
+/// widget in the Flutter tree so the executor can obtain its context.
 class McpWidgetRegistry {
   McpWidgetRegistry._();
 
   static final McpWidgetRegistry instance = McpWidgetRegistry._();
 
-  // Mapa de ID semántico → (metadata + GlobalKey)
+  // Map of semantic ID → (metadata + GlobalKey)
   final Map<String, _WidgetEntry> _widgets = {};
 
-  // ── Registro ────────────────────────────────────────────────────────────
+  // ── Registration ────────────────────────────────────────────────────────────
 
-  /// Registra un widget y crea su GlobalKey interna.
+  /// Registers a widget and creates its internal GlobalKey.
   ///
-  /// Llama a este método antes de montar el widget en el árbol.
-  /// La key resultante se obtiene con [getGlobalKey] y se asigna al widget.
+  /// Call this method before mounting the widget in the tree.
+  /// The resulting key is obtained with [getGlobalKey] and assigned to the widget.
   ///
-  /// Si el ID ya existe, sobrescribe el registro anterior.
+  /// If the ID already exists, it overwrites the previous registration.
   void registerWidget(McpMetadataKey key) {
-    Log.i('[Registry] 📝 Registrando: ${key.id} (${key.widgetType.name})');
+    Log.i('[Registry] 📝 Registering: ${key.id} (${key.widgetType.name})');
     _widgets[key.id] = (
       metadata: key,
       globalKey: GlobalKey(debugLabel: 'MCP:${key.id}'),
     );
   }
 
-  /// Elimina un widget del registro.
+  /// Removes a widget from the registry.
   ///
-  /// Llama en `dispose()` para widgets dinámicos (ej: items de lista).
-  /// Si no se desregistra, la GlobalKey queda huérfana pero no causa crash.
+  /// Call in `dispose()` for dynamic widgets (e.g., list items).
+  /// If not unregistered, the GlobalKey becomes orphaned but does not cause a crash.
   void unregisterWidget(String id) {
-    Log.i('[Registry] 🗑️  Desregistrando: $id');
+    Log.i('[Registry] 🗑️  Unregistering: $id');
     _widgets.remove(id);
   }
 
   // ── Lookup ──────────────────────────────────────────────────────────────
 
-  /// Retorna true si el widget con [id] está registrado.
+  /// Returns true if the widget with [id] is registered.
   bool isRegistered(String id) => _widgets.containsKey(id);
 
-  /// Retorna la GlobalKey interna para asignar al widget en el árbol.
+  /// Returns the internal GlobalKey to assign to the widget in the tree.
   ///
-  /// Uso:
+  /// Usage:
   /// ```dart
   /// ElevatedButton(
   ///   key: McpEvents.instance.getGlobalKey('auth.login_button'),
@@ -83,22 +83,21 @@ class McpWidgetRegistry {
   /// ```
   GlobalKey? getGlobalKey(String id) => _widgets[id]?.globalKey;
 
-  /// Retorna el BuildContext del widget montado, o null si no está en pantalla.
+  /// Returns the BuildContext of the mounted widget, or null if not on screen.
   ///
-  /// El contexto solo existe mientras el widget esté montado en el árbol.
-  /// Si el widget fue desplazado fuera del viewport pero sigue montado,
-  /// el contexto existe pero el widget puede no ser visible.
-  /// Retorna el BuildContext del widget montado, o null si no está en pantalla.
+  /// The context only exists while the widget is mounted in the tree.
+  /// If the widget was scrolled out of the viewport but is still mounted,
+  /// the context exists but the widget may not be visible.
   ///
-  /// Estrategia dual:
-  /// 1. GlobalKey interna (flujo original con getGlobalKey)
-  /// 2. Element-tree walk buscando McpMetadataKey con ese id (flujo directo)
+  /// Dual strategy:
+  /// 1. Internal GlobalKey (original flow with getGlobalKey)
+  /// 2. Element-tree walk searching for McpMetadataKey with that id (direct flow)
   BuildContext? getContext(String id) {
-    // Estrategia 1: GlobalKey interna
+    // Strategy 1: Internal GlobalKey
     final ctx = _widgets[id]?.globalKey.currentContext;
     if (ctx != null) return ctx;
 
-    // Estrategia 2: caminar el árbol buscando McpMetadataKey
+    // Strategy 2: walk the tree searching for McpMetadataKey
     BuildContext? found;
     void visit(Element el) {
       if (found != null) return;
@@ -113,22 +112,22 @@ class McpWidgetRegistry {
     return found;
   }
 
-  /// Retorna el RenderBox del widget, necesario para calcular posición y tamaño.
+  /// Returns the RenderBox of the widget, needed to calculate position and size.
   ///
-  /// Estrategia dual:
-  /// 1. Si el widget usa [getGlobalKey] como key → usa globalKey.currentContext
-  /// 2. Si el widget usa [McpMetadataKey] directo como key → camina el element
-  ///    tree buscando el primer elemento cuyo widget.key tenga el mismo id,
-  ///    luego retorna su primer RenderBox descendiente.
+  /// Dual strategy:
+  /// 1. If the widget uses [getGlobalKey] as key → uses globalKey.currentContext
+  /// 2. If the widget uses [McpMetadataKey] directly as key → walks the element
+  ///    tree looking for the first element whose widget.key has the same id,
+  ///    then returns its first descendant RenderBox.
   RenderBox? getRenderBox(String id) {
-    // Estrategia 1: GlobalKey interna (flujo original)
+    // Strategy 1: Internal GlobalKey (original flow)
     final context = getContext(id);
     if (context != null) {
       final rb = context.findRenderObject() as RenderBox?;
       if (rb != null) return rb;
     }
 
-    // Estrategia 2: McpMetadataKey usado directamente en el árbol
+    // Strategy 2: McpMetadataKey used directly in the tree
     RenderBox? found;
 
     void visitElement(Element el) {
@@ -145,7 +144,7 @@ class McpWidgetRegistry {
     return found;
   }
 
-  /// Retorna el primer [RenderBox] en el subárbol de [el].
+  /// Returns the first [RenderBox] in the subtree of [el].
   RenderBox? _firstRenderBox(Element el) {
     final ro = el.renderObject;
     if (ro is RenderBox) return ro;
@@ -157,27 +156,27 @@ class McpWidgetRegistry {
     return found;
   }
 
-  /// Retorna la metadata de un widget específico.
+  /// Returns the metadata of a specific widget.
   McpMetadataKey? getWidgetMetadata(String id) => _widgets[id]?.metadata;
 
-  // ── Consultas ────────────────────────────────────────────────────────────
+  // ── Queries ────────────────────────────────────────────────────────────
 
-  /// Lista todos los IDs de widgets registrados.
+  /// Lists all registered widget IDs.
   List<String> getAllWidgetIds() => _widgets.keys.toList();
 
-  /// Lista toda la metadata de widgets registrados.
+  /// Lists all registered widget metadata.
   ///
-  /// Usado por el HTTP server para el endpoint /mcp/context y /widgets.
+  /// Used by the HTTP server for the /mcp/context and /widgets endpoints.
   List<McpMetadataKey> getAllWidgets() =>
       _widgets.values.map((e) => e.metadata).toList();
 
-  /// Retorna los entries del registro para iteración en el executor.
+  /// Returns the registry entries for iteration in the executor.
   Iterable<MapEntry<String, ({McpMetadataKey metadata, GlobalKey globalKey})>>
   get entries => _widgets.entries;
 
-  // ── Serialización ────────────────────────────────────────────────────────
+  // ── Serialization ────────────────────────────────────────────────────────
 
-  /// Genera el JSON de contexto consumido por el servidor MCP externo.
+  /// Generates the context JSON consumed by the external MCP server.
   ///
   /// Formato:
   /// ```json
@@ -189,7 +188,7 @@ class McpWidgetRegistry {
   /// }
   /// ```
   ///
-  /// Si [screen] es null, intenta inferirlo del primer widget que tenga screen definido.
+  /// If [screen] is null, attempts to infer it from the first widget that has a defined screen.
   Map<String, dynamic> toJson({String? screen, String? route}) {
     final detectedScreen = screen ?? _detectCurrentScreen();
     return {
@@ -200,10 +199,10 @@ class McpWidgetRegistry {
     };
   }
 
-  // ── Internos ─────────────────────────────────────────────────────────────
+  // ── Internals ─────────────────────────────────────────────────────────────
 
-  /// Infiere el nombre del screen desde los widgets registrados.
-  /// Toma el screen del primer widget que tenga uno definido.
+  /// Infers the screen name from the registered widgets.
+  /// Takes the screen from the first widget that has one defined.
   String _detectCurrentScreen() {
     for (final entry in _widgets.values) {
       if (entry.metadata.screen != null) return entry.metadata.screen!;

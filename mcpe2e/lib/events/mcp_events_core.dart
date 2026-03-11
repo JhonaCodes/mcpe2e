@@ -1,31 +1,31 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// McpEvents — Fachada pública del sistema E2E
+// McpEvents — Public facade for the E2E system
 //
-// Punto de entrada único para que la app registre widgets y para que el HTTP
-// server ejecute eventos. Coordina internamente el registry, el simulador de
-// gestos y el executor sin que el código externo necesite conocerlos.
+// Single entry point for the app to register widgets and for the HTTP
+// server to execute events. Internally coordinates the registry, gesture
+// simulator, and executor without external code needing to know about them.
 //
-// Arquitectura interna:
+// Internal architecture:
 //
-//   McpEvents (fachada)
-//     ├── McpWidgetRegistry   → mantiene el mapa id → (metadata, GlobalKey)
-//     ├── McpGestureSimulator → genera PointerEvents para GestureBinding
-//     └── McpEventExecutor    → despacha eventos a implementaciones concretas
+//   McpEvents (facade)
+//     ├── McpWidgetRegistry   → maintains the id → (metadata, GlobalKey) map
+//     ├── McpGestureSimulator → generates PointerEvents for GestureBinding
+//     └── McpEventExecutor    → dispatches events to concrete implementations
 //
-// Flujo completo desde la app hasta Claude:
+// Full flow from the app to Claude:
 //
-//   App registra widget  →  McpEvents.registerWidget(key)
-//                               McpWidgetRegistry guarda key + GlobalKey
-//   Widget usa GlobalKey →  key: McpEvents.instance.getGlobalKey('auth.login')
-//                               Flutter asocia el Element al GlobalKey
+//   App registers widget →  McpEvents.registerWidget(key)
+//                               McpWidgetRegistry stores key + GlobalKey
+//   Widget uses GlobalKey → key: McpEvents.instance.getGlobalKey('auth.login')
+//                               Flutter associates the Element with the GlobalKey
 //
-//   Claude invoca tool   →  mcpe2e_server recibe JSON-RPC
-//                               mcpe2e_server hace HTTP GET/POST
-//                               McpEventServer recibe request HTTP
-//                               McpEventServer llama McpEvents.executeEvent()
-//                               McpEventExecutor obtiene context del Registry
-//                               McpEventExecutor ejecuta el gesto
-//                               GestureBinding enruta al widget correcto
+//   Claude invokes tool   → mcpe2e_server receives JSON-RPC
+//                               mcpe2e_server makes HTTP GET/POST
+//                               McpEventServer receives HTTP request
+//                               McpEventServer calls McpEvents.executeEvent()
+//                               McpEventExecutor obtains context from Registry
+//                               McpEventExecutor executes the gesture
+//                               GestureBinding routes to the correct widget
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/widgets.dart';
@@ -35,31 +35,31 @@ import '../core/mcp_event_executor.dart';
 import 'mcp_event_type.dart';
 import 'mcp_metadata_key.dart';
 
-// ── Fachada ───────────────────────────────────────────────────────────────────
+// ── Facade ────────────────────────────────────────────────────────────────────
 
-/// Punto de entrada público del sistema mcpe2e.
+/// Public entry point for the mcpe2e system.
 ///
-/// Expone las operaciones del sistema como API simple sin que el llamador
-/// necesite conocer el Registry, Simulator o Executor internamente.
+/// Exposes system operations as a simple API without requiring the caller
+/// to know about the Registry, Simulator, or Executor internally.
 ///
-/// Uso típico en la app:
+/// Typical usage in the app:
 /// ```dart
-/// // 1. Registrar widgets antes de montarlos
+/// // 1. Register widgets before mounting them
 /// McpEvents.instance.registerWidget(const McpMetadataKey(
 ///   id: 'auth.login_button',
 ///   widgetType: McpWidgetType.button,
-///   description: 'Botón principal de login',
+///   description: 'Main login button',
 ///   screen: 'LoginScreen',
 /// ));
 ///
-/// // 2. Usar la key en el widget
+/// // 2. Use the key in the widget
 /// ElevatedButton(
 ///   key: McpEvents.instance.getGlobalKey('auth.login_button'),
 ///   onPressed: _handleLogin,
-///   child: const Text('Ingresar'),
+///   child: const Text('Sign in'),
 /// )
 ///
-/// // 3. Iniciar el servidor (en main() o en un initState de debug)
+/// // 3. Start the server (in main() or in a debug initState)
 /// if (kDebugMode) await McpEventServer.start();
 /// ```
 class McpEvents {
@@ -67,66 +67,66 @@ class McpEvents {
 
   static final McpEvents instance = McpEvents._();
 
-  // ── Componentes internos ──────────────────────────────────────────────────
+  // ── Internal components ──────────────────────────────────────────────────
 
   final _registry = McpWidgetRegistry.instance;
   final _simulator = McpGestureSimulator.instance;
   late final _executor = McpEventExecutor(_registry, _simulator);
 
-  // ── Registro de widgets ───────────────────────────────────────────────────
+  // ── Widget registration ──────────────────────────────────────────────────
 
-  /// Registra un widget testable y crea su GlobalKey interna.
+  /// Registers a testable widget and creates its internal GlobalKey.
   ///
-  /// Llamar antes de montar el widget en el árbol.
-  /// La key se obtiene después con [getGlobalKey].
+  /// Call before mounting the widget in the tree.
+  /// The key is retrieved afterwards with [getGlobalKey].
   void registerWidget(McpMetadataKey key) => _registry.registerWidget(key);
 
-  /// Elimina un widget del registro.
+  /// Removes a widget from the registry.
   ///
-  /// Llamar en `dispose()` para widgets dinámicos que se destruyen.
+  /// Call in `dispose()` for dynamic widgets that are destroyed.
   void unregisterWidget(String id) => _registry.unregisterWidget(id);
 
-  /// Retorna true si el widget con [id] está registrado.
+  /// Returns true if the widget with [id] is registered.
   bool isRegistered(String id) => _registry.isRegistered(id);
 
-  /// Retorna la GlobalKey para asignar al widget en el árbol.
+  /// Returns the GlobalKey to assign to the widget in the tree.
   ///
-  /// La key permite que el executor obtenga el BuildContext y RenderBox
-  /// del widget cuando ejecute eventos sobre él.
+  /// The key allows the executor to obtain the BuildContext and RenderBox
+  /// of the widget when executing events on it.
   GlobalKey? getGlobalKey(String id) => _registry.getGlobalKey(id);
 
-  /// Retorna el BuildContext del widget si está montado.
+  /// Returns the BuildContext of the widget if it is mounted.
   BuildContext? getContext(String id) => _registry.getContext(id);
 
-  /// Retorna la metadata registrada para un widget.
+  /// Returns the registered metadata for a widget.
   McpMetadataKey? getWidgetMetadata(String id) =>
       _registry.getWidgetMetadata(id);
 
-  // ── Consultas ─────────────────────────────────────────────────────────────
+  // ── Queries ──────────────────────────────────────────────────────────────
 
-  /// Lista los IDs de todos los widgets registrados.
+  /// Lists the IDs of all registered widgets.
   List<String> getAllWidgetIds() => _registry.getAllWidgetIds();
 
-  /// Lista la metadata de todos los widgets registrados.
+  /// Lists the metadata of all registered widgets.
   List<McpMetadataKey> getAllWidgets() => _registry.getAllWidgets();
 
-  // ── Serialización ─────────────────────────────────────────────────────────
+  // ── Serialization ────────────────────────────────────────────────────────
 
-  /// Genera el JSON de contexto consumido por el servidor MCP externo.
+  /// Generates the context JSON consumed by the external MCP server.
   ///
-  /// Contiene screen, route, timestamp y la lista de widgets con capabilities.
-  /// Este JSON es lo que Claude ve cuando llama a `get_app_context`.
+  /// Contains screen, route, timestamp, and the list of widgets with capabilities.
+  /// This JSON is what Claude sees when it calls `get_app_context`.
   Map<String, dynamic> toJson({String? screen, String? route}) =>
       _registry.toJson(screen: screen, route: route);
 
-  // ── Ejecución de eventos ──────────────────────────────────────────────────
+  // ── Event execution ──────────────────────────────────────────────────────
 
-  /// Ejecuta el [eventType] sobre el widget identificado por [widgetKey].
+  /// Executes the [eventType] on the widget identified by [widgetKey].
   ///
-  /// Retorna true si el evento tuvo éxito, false si falló.
-  /// Para aserciones, retorna true = aserción cumplida.
+  /// Returns true if the event succeeded, false if it failed.
+  /// For assertions, returns true = assertion passed.
   ///
-  /// Ver [McpEventType] para la lista completa de eventos disponibles.
+  /// See [McpEventType] for the full list of available events.
   Future<bool> executeEvent({
     required String widgetKey,
     required McpEventType eventType,

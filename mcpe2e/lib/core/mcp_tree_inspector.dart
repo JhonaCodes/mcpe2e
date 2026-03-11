@@ -1,38 +1,38 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // McpTreeInspector
 //
-// Recorre el widget tree de Flutter desde la raíz (WidgetsBinding.rootElement)
-// y extrae los widgets con datos relevantes: textos, valores de campos,
-// estados de botones/checkboxes/switches, valores de sliders, etc.
+// Walks the Flutter widget tree from the root (WidgetsBinding.rootElement)
+// and extracts widgets with relevant data: texts, field values,
+// button/checkbox/switch states, slider values, etc.
 //
-// Diseño:
-//   - CERO intrusión: no agrega widgets al árbol. Mismo mecanismo que Flutter
-//     DevTools (visitChildElements recursivo desde la raíz).
-//   - CERO dependencia del registro (McpWidgetRegistry): funciona con cualquier
-//     widget, esté o no registrado.
-//   - Solo funciona en debug/profile (donde el árbol de elementos existe).
-//   - En producción (release), visitChildElements sigue funcionando pero los
-//     valores de debug podrían estar ausentes.
+// Design:
+//   - ZERO intrusion: does not add widgets to the tree. Same mechanism as Flutter
+//     DevTools (recursive visitChildElements from the root).
+//   - ZERO dependency on the registry (McpWidgetRegistry): works with any
+//     widget, whether registered or not.
+//   - Only works in debug/profile (where the element tree exists).
+//   - In production (release), visitChildElements still works but debug
+//     values may be absent.
 //
-// Widgets incluidos (tienen datos o estado relevante para tests):
+// Included widgets (have data or state relevant for tests):
 //   Text, RichText(*), TextField, TextFormField, ElevatedButton, TextButton,
 //   OutlinedButton, FilledButton, IconButton, Checkbox, Switch, Radio, Slider,
 //   Image, AppBar, AlertDialog, BottomSheet, SnackBar, DropdownButtonFormField,
 //   CircularProgressIndicator, LinearProgressIndicator, RefreshProgressIndicator
-//   (*) RichText omitido si es descendiente directo de Text (evita duplicados)
+//   (*) RichText is omitted if it is a direct descendant of Text (avoids duplicates)
 //
-// Loading widgets exponen "loading": true para que el servidor MCP sepa
-// que debe esperar antes de continuar con la siguiente acción.
+// Loading widgets expose "loading": true so the MCP server knows
+// it should wait before proceeding with the next action.
 //
-// Widgets excluidos (layout sin datos propios):
+// Excluded widgets (layout without own data):
 //   Padding, SizedBox, Spacer, Align, Center, Expanded, Flexible, Positioned,
-//   Stack, Wrap, Container (sin key), RepaintBoundary, AnimatedBuilder,
-//   Material, Scaffold, InkWell, EditableText (interno de TextField)
+//   Stack, Wrap, Container (without key), RepaintBoundary, AnimatedBuilder,
+//   Material, Scaffold, InkWell, EditableText (internal to TextField)
 //
-// Flujo:
+// Flow:
 //   inspect() → _walk(rootElement, depth=0, result=[]) →
-//   visita cada element → extrae datos si es widget interesante →
-//   continúa recursión → retorna flat list con depth
+//   visits each element → extracts data if it is an interesting widget →
+//   continues recursion → returns flat list with depth
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ignore_for_file: deprecated_member_use
@@ -41,29 +41,29 @@ import 'package:flutter/material.dart';
 
 import '../events/mcp_metadata_key.dart';
 
-// ── API pública ────────────────────────────────────────────────────────────────
+// ── Public API ────────────────────────────────────────────────────────────────
 
-/// Inspector del árbol de widgets de Flutter.
+/// Flutter widget tree inspector.
 ///
-/// Lee el estado actual del árbol sin agregar ningún widget.
-/// Ideal para que Claude verifique valores, estados y contenidos en pantalla.
+/// Reads the current tree state without adding any widgets.
+/// Ideal for Claude to verify values, states, and on-screen contents.
 ///
-/// Uso:
+/// Usage:
 /// ```dart
 /// final json = McpTreeInspector.inspect();
-/// // json['widgets'] → lista de todos los widgets con datos
+/// // json['widgets'] → list of all widgets with data
 /// ```
 class McpTreeInspector {
   McpTreeInspector._();
 
-  /// Recorre el árbol completo y retorna un JSON con todos los widgets
-  /// que contienen datos relevantes para testing.
+  /// Walks the entire tree and returns a JSON with all widgets
+  /// that contain data relevant for testing.
   ///
-  /// El JSON incluye:
-  /// - `timestamp`: cuándo se capturó
-  /// - `widget_count`: cantidad de widgets encontrados
-  /// - `widgets`: lista de entradas, cada una con `type`, `depth`, y datos
-  ///   según el tipo (value, label, enabled, key, x, y, w, h)
+  /// The JSON includes:
+  /// - `timestamp`: when the snapshot was taken
+  /// - `widget_count`: number of widgets found
+  /// - `widgets`: list of entries, each with `type`, `depth`, and data
+  ///   depending on the type (value, label, enabled, key, x, y, w, h)
   static Map<String, dynamic> inspect() {
     final root = WidgetsBinding.instance.rootElement;
     if (root == null) {
@@ -78,9 +78,9 @@ class McpTreeInspector {
     final result = <Map<String, dynamic>>[];
     _walk(root, 0, result);
 
-    // Sanitizar TODO el resultado antes de retornar: cualquier double NaN o
-    // Infinite (de posiciones, Slider.value/min/max, etc.) se convierte en null
-    // para que jsonEncode nunca falle por valores no serializables.
+    // Sanitize the entire result before returning: any NaN or Infinite double
+    // (from positions, Slider.value/min/max, etc.) is converted to null
+    // so that jsonEncode never fails due to non-serializable values.
     final sanitized = sanitizeList(result);
 
     return {
@@ -92,12 +92,12 @@ class McpTreeInspector {
 
   // ── Tree walk ──────────────────────────────────────────────────────────────
 
-  /// Recorre el árbol recursivamente.
+  /// Walks the tree recursively.
   ///
-  /// Extrae datos del widget si es interesante y siempre continúa
-  /// la recursión en los hijos, excepto para widgets "hoja" cuya
-  /// información interna ya fue capturada (TextField, EditableText).
-  /// [inOverlay] se propaga a todos los descendientes de un contenedor modal.
+  /// Extracts data from the widget if it is interesting and always continues
+  /// recursion into children, except for "leaf" widgets whose internal
+  /// information has already been captured (TextField, EditableText).
+  /// [inOverlay] is propagated to all descendants of a modal container.
   static void _walk(
     Element element,
     int depth,
@@ -110,7 +110,7 @@ class McpTreeInspector {
     final enteringOverlay = !inOverlay && _isOverlayContainer(widget);
     final childInOverlay = inOverlay || enteringOverlay;
 
-    // Extraer datos si es un widget con información relevante.
+    // Extract data if it is a widget with relevant information.
     // try-catch: generic widgets (Radio<T>, PopupMenuButton<T>, etc.) can
     // throw TypeErrors due to Dart's function contravariance when accessed
     // via a bare `is` check that erases the type parameter to `dynamic`.
@@ -122,9 +122,9 @@ class McpTreeInspector {
     }
     if (entry != null) result.add(entry);
 
-    // Siempre continuar recursión, excepto en nodos cuya info
-    // interna ya extrajimos (evita entradas duplicadas)
-    final skipChildren = widget is EditableText; // interno de TextField
+    // Always continue recursion, except for nodes whose internal
+    // info was already extracted (avoids duplicate entries)
+    final skipChildren = widget is EditableText; // internal to TextField
     if (!skipChildren) {
       element.visitChildElements(
         (child) => _walk(child, depth + 1, result, inOverlay: childInOverlay),
@@ -132,7 +132,7 @@ class McpTreeInspector {
     }
   }
 
-  /// Detecta si un widget es la raíz de una capa modal/overlay.
+  /// Detects if a widget is the root of a modal/overlay layer.
   static bool _isOverlayContainer(Widget w) {
     if (w is AlertDialog || w is Dialog || w is SimpleDialog ||
         w is BottomSheet || w is SnackBar) {
@@ -143,27 +143,27 @@ class McpTreeInspector {
     return t == '_ModalScope' || t == '_ModalBarrier';
   }
 
-  // ── Extracción de datos ────────────────────────────────────────────────────
+  // ── Data extraction ────────────────────────────────────────────────────
 
-  /// Retorna un mapa con los datos del widget, o null si no es interesante.
-  /// [inOverlay] indica que este widget pertenece a un diálogo/overlay activo.
+  /// Returns a map with the widget's data, or null if it is not interesting.
+  /// [inOverlay] indicates that this widget belongs to an active dialog/overlay.
   static Map<String, dynamic>? _extract(
     Widget widget,
     Element element,
     int depth, {
     bool inOverlay = false,
   }) {
-    // Obtener posición en pantalla (null si no está montado o sin renderObject)
+    // Get position on screen (null if not mounted or no renderObject)
     final pos = _position(element);
 
-    // Obtener key MCP o ValueKey<String> si existe
+    // Get MCP key or ValueKey<String> if it exists
     final mcpKey = widget.key is McpMetadataKey
         ? (widget.key as McpMetadataKey).id
         : widget.key is ValueKey<String>
         ? (widget.key as ValueKey<String>).value
         : null;
 
-    // ── Texto ──────────────────────────────────────────────────────────────
+    // ── Text ──────────────────────────────────────────────────────────────
     if (widget is Text) {
       final value = widget.data ?? widget.textSpan?.toPlainText();
       if (value == null || value.isEmpty) return null;
@@ -171,14 +171,14 @@ class McpTreeInspector {
           extra: {'value': value}, inOverlay: inOverlay);
     }
 
-    // RichText: solo si no es hijo directo de un Text (evita duplicados).
-    // Como Text siempre crea RichText internamente, saltamos este caso.
+    // RichText: only if not a direct child of a Text (avoids duplicates).
+    // Since Text always creates RichText internally, we skip this case.
     if (widget is RichText) return null;
 
-    // EditableText es interno de TextField — capturado ahí
+    // EditableText is internal to TextField — captured there
     if (widget is EditableText) return null;
 
-    // ── Campos de texto ────────────────────────────────────────────────────
+    // ── Text fields ────────────────────────────────────────────────────
     if (widget is TextField) {
       final value = _findEditableTextValue(element);
       final hint = widget.decoration?.hintText;
@@ -217,7 +217,7 @@ class McpTreeInspector {
       );
     }
 
-    // ── Botones ────────────────────────────────────────────────────────────
+    // ── Buttons ────────────────────────────────────────────────────────────
     if (widget is ElevatedButton) {
       final label = _findTextInSubtree(element);
       final enabled = widget.onPressed != null;
@@ -283,7 +283,7 @@ class McpTreeInspector {
       );
     }
 
-    // ── Controles de selección ─────────────────────────────────────────────
+    // ── Selection controls ─────────────────────────────────────────────
     if (widget is Checkbox) {
       return _entry(
         'Checkbox',
@@ -345,9 +345,9 @@ class McpTreeInspector {
     }
 
     // ── PopupMenuButton ────────────────────────────────────────────────────
-    // Usado frecuentemente en AppBar para menús desplegables (soluciones,
-    // filtros, opciones de pantalla). Sin este bloque el LLM no lo ve en
-    // INTERACTIVE y no puede abrirlo.
+    // Frequently used in AppBar for dropdown menus (solutions, filters,
+    // screen options). Without this block the LLM cannot see it in
+    // INTERACTIVE and cannot open it.
     // PopupMenuButton<T> and DropdownButtonFormField<T> are generic —
     // property access can throw TypeError due to Dart's type erasure.
     if (widget is PopupMenuButton) {
@@ -384,10 +384,10 @@ class McpTreeInspector {
       );
     }
 
-    // ── Imagen ─────────────────────────────────────────────────────────────
+    // ── Image ─────────────────────────────────────────────────────────────
     if (widget is Image) {
       final label = widget.semanticLabel;
-      if (label == null && mcpKey == null) return null; // no info útil
+      if (label == null && mcpKey == null) return null; // no useful info
       return _entry(
         'Image',
         depth,
@@ -407,7 +407,7 @@ class McpTreeInspector {
           extra: {'title': ?titleText}, inOverlay: inOverlay);
     }
 
-    // ── Diálogos / overlays ────────────────────────────────────────────────
+    // ── Dialogs / overlays ────────────────────────────────────────────────
     if (widget is AlertDialog) {
       final titleText = widget.title is Text
           ? (widget.title as Text).data
@@ -447,9 +447,9 @@ class McpTreeInspector {
       );
     }
 
-    // ── Indicadores de carga ───────────────────────────────────────────────
-    // "loading": true permite al servidor MCP detectar que la UI está ocupada
-    // y esperar antes de continuar con la siguiente acción.
+    // ── Loading indicators ───────────────────────────────────────────────
+    // "loading": true allows the MCP server to detect that the UI is busy
+    // and wait before proceeding with the next action.
     if (widget is CircularProgressIndicator) {
       return _entry(
         'CircularProgressIndicator',
@@ -488,9 +488,9 @@ class McpTreeInspector {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /// Construye una entrada del resultado con los campos estándar.
-  /// [inOverlay] = true añade `"overlay": true` para indicar que el widget
-  /// pertenece a un diálogo, BottomSheet o AlertDialog activo.
+  /// Builds a result entry with the standard fields.
+  /// [inOverlay] = true adds `"overlay": true` to indicate that the widget
+  /// belongs to an active dialog, BottomSheet, or AlertDialog.
   static Map<String, dynamic> _entry(
     String type,
     int depth,
@@ -509,11 +509,11 @@ class McpTreeInspector {
     };
   }
 
-  /// Obtiene la posición y tamaño del widget en coordenadas de pantalla.
+  /// Gets the position and size of the widget in screen coordinates.
   ///
-  /// Retorna null si el widget no está montado, si el layout no se ha completado,
-  /// o si alguna coordenada es NaN / Infinite (puede ocurrir durante transiciones
-  /// como cambios de idioma donde el árbol se reconstruye mid-frame).
+  /// Returns null if the widget is not mounted, if layout has not completed,
+  /// or if any coordinate is NaN / Infinite (can occur during transitions
+  /// such as language changes where the tree rebuilds mid-frame).
   static Map<String, double>? _position(Element element) {
     try {
       final ro = element.renderObject;
@@ -524,8 +524,8 @@ class McpTreeInspector {
       final y = round(offset.dy);
       final w = round(size.width);
       final h = round(size.height);
-      // Descartar si alguna coordenada no es un número finito válido.
-      // Ocurre cuando el RenderBox existe pero el layout aún no terminó.
+      // Discard if any coordinate is not a valid finite number.
+      // Occurs when the RenderBox exists but layout has not yet finished.
       if (!x.isFinite || !y.isFinite || !w.isFinite || !h.isFinite) return null;
       return {'x': x, 'y': y, 'w': w, 'h': h};
     } catch (_) {
@@ -533,9 +533,9 @@ class McpTreeInspector {
     }
   }
 
-  /// Busca el texto del primer Text descendiente del elemento.
+  /// Finds the text of the first Text descendant of the element.
   ///
-  /// Útil para extraer el label de botones sin recorrer todo el subárbol.
+  /// Useful for extracting button labels without walking the entire subtree.
   static String? _findTextInSubtree(Element element) {
     String? found;
     void visit(Element el) {
@@ -551,8 +551,8 @@ class McpTreeInspector {
     return found;
   }
 
-  /// Busca el valor actual del texto en un TextField/TextFormField
-  /// localizando el EditableText descendiente y leyendo su controller.
+  /// Finds the current text value in a TextField/TextFormField
+  /// by locating the descendant EditableText and reading its controller.
   static String? _findEditableTextValue(Element element) {
     String? found;
     void visit(Element el) {
@@ -568,26 +568,26 @@ class McpTreeInspector {
     return found;
   }
 
-  /// Redondea a 1 decimal para reducir ruido en las coordenadas.
+  /// Rounds to 1 decimal place to reduce noise in coordinates.
   ///
-  /// Propaga NaN/Infinite tal cual — [_position] los detecta con `.isFinite`
-  /// antes de incluir las coordenadas en el resultado.
+  /// Propagates NaN/Infinite as-is — [_position] detects them with `.isFinite`
+  /// before including the coordinates in the result.
   @visibleForTesting
   static double round(double v) {
     if (!v.isFinite) return v;
     return (v * 10).roundToDouble() / 10;
   }
 
-  // ── Sanitización para JSON ─────────────────────────────────────────────────
+  // ── JSON sanitization ─────────────────────────────────────────────────
 
-  /// Convierte recursivamente cualquier double no finito (NaN, Infinite) en null.
+  /// Recursively converts any non-finite double (NaN, Infinite) to null.
   ///
-  /// Necesario porque jsonEncode no acepta NaN ni Infinite. Los NaN pueden venir
-  /// de posiciones de widgets mid-layout (transiciones, cambios de idioma) o de
-  /// propiedades de widgets como Slider.value/min/max cuando aún no están
-  /// inicializados correctamente.
+  /// Necessary because jsonEncode does not accept NaN or Infinite. NaN values
+  /// can come from widget positions during mid-layout (transitions, language
+  /// changes) or from widget properties like Slider.value/min/max when they
+  /// are not yet properly initialized.
   ///
-  /// Uso fuera de tests no recomendado — llamar solo a través de [inspect].
+  /// Usage outside of tests is not recommended — call only through [inspect].
   @visibleForTesting
   static List<Map<String, dynamic>> sanitizeList(
     List<Map<String, dynamic>> list,

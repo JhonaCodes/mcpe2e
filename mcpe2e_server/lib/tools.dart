@@ -1,16 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// tools.dart — Herramientas MCP que Claude puede invocar
+// tools.dart — MCP tools that Claude can invoke
 //
-// Define las 25 herramientas disponibles y las traduce a llamadas HTTP
-// contra el servidor embebido en la app Flutter (McpEventServer).
+// Defines the 25 available tools and translates them to HTTP calls
+// against the embedded server in the Flutter app (McpEventServer).
 //
-// Flujo por herramienta:
-//   Claude llama tool → protocol.dart extrae nombre y args →
-//   callTool() traduce a HTTP GET/POST → FlutterBridge lo envía →
-//   McpEventServer en la app ejecuta el evento → retorna resultado
+// Flow per tool:
+//   Claude calls tool → protocol.dart extracts name and args →
+//   callTool() translates to HTTP GET/POST → FlutterBridge sends it →
+//   McpEventServer in the app executes the event → returns result
 //
-// URL base: TESTBRIDGE_URL (e.g. http://localhost:7778 con ADB forward,
-//           o http://localhost:7777 en desktop)
+// Base URL: TESTBRIDGE_URL (e.g. http://localhost:7778 with ADB forward,
+//           or http://localhost:7777 on desktop)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:convert';
@@ -59,24 +59,24 @@ String findAdb() {
 
 // ── HTTP Bridge ───────────────────────────────────────────────────────────────
 
-/// Cliente HTTP hacia el servidor embebido en la app Flutter.
+/// HTTP client to the embedded server in the Flutter app.
 ///
-/// [baseUrl] apunta a donde el McpEventServer escucha.
-/// En Android: http://localhost:7778 (ADB forward device:7777)
-/// En desktop: http://localhost:7777 (sin forwarding)
+/// [baseUrl] points to where McpEventServer listens.
+/// On Android: http://localhost:7778 (ADB forward device:7777)
+/// On desktop: http://localhost:7777 (no forwarding)
 class FlutterBridge {
   final String baseUrl;
   final http.Client _client = http.Client();
 
   FlutterBridge(this.baseUrl);
 
-  /// GET [path] → retorna response body como String (forzando UTF-8).
+  /// GET [path] → returns response body as String (forcing UTF-8).
   Future<String> get(String path) async {
     final response = await _client.get(Uri.parse('$baseUrl$path'));
     return response.body;
   }
 
-  /// POST [path] con JSON [body] → retorna response body como String (forzando UTF-8).
+  /// POST [path] with JSON [body] → returns response body as String (forcing UTF-8).
   Future<String> post(String path, Map<String, dynamic> body) async {
     final response = await _client.post(
       Uri.parse('$baseUrl$path'),
@@ -89,12 +89,12 @@ class FlutterBridge {
 
 // ── Auto-fallback helper ──────────────────────────────────────────────────────
 
-/// Ejecuta [action] usando el key registrado. Si Flutter devuelve un error,
-/// busca el widget por su campo [key] en el árbol vivo y hace tap_at en su
-/// centro como fallback.
+/// Executes [action] using the registered key. If Flutter returns an error,
+/// looks up the widget by its [key] field in the live tree and taps at its
+/// center as a fallback.
 ///
-/// Aplica a: toggle_widget, tap_widget, double_tap_widget,
-///           long_press_widget, show_keyboard.
+/// Applies to: toggle_widget, tap_widget, double_tap_widget,
+///             long_press_widget, show_keyboard.
 Future<List<Map<String, dynamic>>> _withCoordFallback({
   required String key,
   required Future<String> Function() action,
@@ -102,7 +102,7 @@ Future<List<Map<String, dynamic>>> _withCoordFallback({
 }) async {
   final result = await action();
   // Success path — return immediately
-  if (!result.contains('Error:') && !result.toLowerCase().contains('falló')) {
+  if (!result.contains('Error:') && !result.toLowerCase().contains('failed')) {
     return [{'type': 'text', 'text': result}];
   }
   // Fallback: find widget by key in live tree, tap its center
@@ -131,15 +131,15 @@ Future<List<Map<String, dynamic>>> _withCoordFallback({
 
 // ── Loading-aware wait helper ─────────────────────────────────────────────────
 
-/// Espera a que no haya ningún indicador de carga visible en el árbol.
+/// Waits until there are no visible loading indicators in the tree.
 ///
-/// Estrategia:
-///   1. Chequea el árbol inmediatamente (cero overhead en pantallas sin loading).
-///   2. Si hay loading, re-chequea cada [pollMs] ms hasta [timeoutMs].
-///   3. Retorna null si quedó idle, o un mensaje de timeout si el loading no desapareció.
+/// Strategy:
+///   1. Checks the tree immediately (zero overhead on screens without loading).
+///   2. If loading, re-checks every [pollMs] ms until [timeoutMs].
+///   3. Returns null if idle, or a timeout message if loading did not disappear.
 ///
-/// Detecta: CircularProgressIndicator, LinearProgressIndicator,
-///          RefreshProgressIndicator, y cualquier widget con "loading": true.
+/// Detects: CircularProgressIndicator, LinearProgressIndicator,
+///          RefreshProgressIndicator, and any widget with "loading": true.
 Future<String?> _waitForIdle(
   FlutterBridge bridge, {
   int pollMs = 300,
@@ -155,14 +155,14 @@ Future<String?> _waitForIdle(
       final widgets =
           (data['widgets'] as List? ?? []).cast<Map<String, dynamic>>();
       final isLoading = widgets.any((w) => w['loading'] as bool? ?? false);
-      if (!isLoading) return null; // idle — sin carga
+      if (!isLoading) return null; // idle — no loading
     } catch (_) {
-      return null; // no se puede checar → asumir idle
+      return null; // cannot check → assume idle
     }
 
     if (firstCheck) {
       firstCheck = false;
-      // Primera vez que encontró loading: espera corta antes del primer poll
+      // First time loading was found: short wait before the first poll
       await Future.delayed(const Duration(milliseconds: 150));
     } else {
       await Future.delayed(Duration(milliseconds: pollMs));
@@ -171,8 +171,8 @@ Future<String?> _waitForIdle(
   return 'loading_timeout_${timeoutMs}ms';
 }
 
-/// Ejecuta [action], luego espera a que el UI quede idle (sin loading).
-/// Si hay timeout de loading, agrega una advertencia al resultado.
+/// Executes [action], then waits for the UI to become idle (no loading).
+/// If there is a loading timeout, appends a warning to the result.
 Future<List<Map<String, dynamic>>> _thenWaitIdle(
   Future<List<Map<String, dynamic>>> action,
   FlutterBridge bridge,
@@ -186,77 +186,77 @@ Future<List<Map<String, dynamic>>> _thenWaitIdle(
   ];
 }
 
-// ── Definiciones de herramientas ──────────────────────────────────────────────
+// ── Tool definitions ─────────────────────────────────────────────────────────
 
-/// Las 25 herramientas MCP que Claude puede invocar.
+/// The 25 MCP tools that Claude can invoke.
 ///
-/// Cada entrada sigue el esquema JSON-Schema de MCP para tool definitions.
+/// Each entry follows the MCP JSON-Schema for tool definitions.
 final List<Map<String, dynamic>> toolDefinitions = [
 
-  // ── Contexto ───────────────────────────────────────────────────────────────
+  // ── Context ────────────────────────────────────────────────────────────────
 
   {
     'name': 'get_app_context',
     'description':
-        'Obtiene el estado actual de la app: pantalla activa y widgets que tienen '
-        'McpMetadataKey registrada (campo "key" presente). '
-        'Úsalo para descubrir qué keys están activas ANTES de ejecutar herramientas key-based. '
-        'Para ver TODOS los widgets con coordenadas x/y, usa inspect_ui. '
-        'Flujo recomendado: get_app_context (saber qué keys hay) → '
-        'inspect_ui (coordenadas de cualquier widget) → acciones.',
+        'Gets the current app state: active screen and widgets that have '
+        'a registered McpMetadataKey ("key" field present). '
+        'Use it to discover which keys are active BEFORE running key-based tools. '
+        'To see ALL widgets with x/y coordinates, use inspect_ui. '
+        'Recommended flow: get_app_context (discover available keys) → '
+        'inspect_ui (coordinates for any widget) → actions.',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
   {
     'name': 'list_test_cases',
-    'description': 'Alias de get_app_context. Lista los widgets registrados con McpMetadataKey.',
+    'description': 'Alias of get_app_context. Lists widgets registered with McpMetadataKey.',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
 
-  // ── Gestos básicos ─────────────────────────────────────────────────────────
+  // ── Basic gestures ─────────────────────────────────────────────────────────
 
   {
     'name': 'tap_widget',
-    'description': 'Tap simple en un widget. Equivale a un toque del usuario.',
+    'description': 'Single tap on a widget. Equivalent to a user touch.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget (e.g. "auth.login_button")'},
+        'key': {'type': 'string', 'description': 'Widget ID (e.g. "auth.login_button")'},
       },
       'required': ['key'],
     },
   },
   {
     'name': 'double_tap_widget',
-    'description': 'Doble tap en un widget. Útil para zoom u otras acciones de doble toque.',
+    'description': 'Double tap on a widget. Useful for zoom or other double-tap actions.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget'},
+        'key': {'type': 'string', 'description': 'Widget ID'},
       },
       'required': ['key'],
     },
   },
   {
     'name': 'long_press_widget',
-    'description': 'Tap sostenido. Activa menús contextuales y acciones de hold.',
+    'description': 'Long press. Triggers context menus and hold actions.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget'},
-        'duration_ms': {'type': 'integer', 'description': 'Duración en ms (default: 500)'},
+        'key': {'type': 'string', 'description': 'Widget ID'},
+        'duration_ms': {'type': 'integer', 'description': 'Duration in ms (default: 500)'},
       },
       'required': ['key'],
     },
   },
   {
     'name': 'swipe_widget',
-    'description': 'Deslizamiento sobre un widget. Útil para swipe-to-delete, carousels, etc.',
+    'description': 'Swipe on a widget. Useful for swipe-to-delete, carousels, etc.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget'},
+        'key': {'type': 'string', 'description': 'Widget ID'},
         'direction': {'type': 'string', 'enum': ['up', 'down', 'left', 'right']},
-        'distance': {'type': 'number', 'description': 'Distancia en px (default: 300)'},
+        'distance': {'type': 'number', 'description': 'Distance in px (default: 300)'},
       },
       'required': ['key', 'direction'],
     },
@@ -264,16 +264,16 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'scroll_widget',
     'description':
-        'Scroll de un widget scrollable (ListView, SingleChildScrollView, etc.). '
-        'key es opcional — si se omite, el scroll se aplica al widget scrollable activo en pantalla. '
-        'amount/distance: píxeles a desplazar (default: 300).',
+        'Scroll a scrollable widget (ListView, SingleChildScrollView, etc.). '
+        'key is optional — if omitted, scrolls the active scrollable widget on screen. '
+        'amount/distance: pixels to scroll (default: 300).',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget scrollable (opcional)'},
+        'key': {'type': 'string', 'description': 'Scrollable widget ID (optional)'},
         'direction': {'type': 'string', 'enum': ['up', 'down', 'left', 'right']},
-        'amount': {'type': 'number', 'description': 'Píxeles a desplazar (alias de distance, default: 300)'},
-        'distance': {'type': 'number', 'description': 'Píxeles a desplazar (default: 300)'},
+        'amount': {'type': 'number', 'description': 'Pixels to scroll (alias of distance, default: 300)'},
+        'distance': {'type': 'number', 'description': 'Pixels to scroll (default: 300)'},
       },
       'required': ['direction'],
     },
@@ -281,16 +281,16 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'tap_at',
     'description':
-        'Tap en coordenadas absolutas de pantalla (logical pixels). '
-        'Útil para widgets sin ID registrado: cards dinámicas, items de lista, etc. '
-        'Obtén las coordenadas con inspect_ui (campos x, y del nodo) o capture_screenshot. '
-        'Las coordenadas corresponden a la esquina superior izquierda del widget; '
-        'para tapear el centro suma width/2 y height/2.',
+        'Tap at absolute screen coordinates (logical pixels). '
+        'Useful for widgets without a registered ID: dynamic cards, list items, etc. '
+        'Get coordinates from inspect_ui (x, y fields of the node) or capture_screenshot. '
+        'Coordinates correspond to the top-left corner of the widget; '
+        'to tap the center, add width/2 and height/2.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'x': {'type': 'number', 'description': 'Coordenada X en logical pixels'},
-        'y': {'type': 'number', 'description': 'Coordenada Y en logical pixels'},
+        'x': {'type': 'number', 'description': 'X coordinate in logical pixels'},
+        'y': {'type': 'number', 'description': 'Y coordinate in logical pixels'},
       },
       'required': ['x', 'y'],
     },
@@ -298,13 +298,13 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'tap_by_label',
     'description':
-        'Tap en un widget buscándolo por su texto visible. '
-        'Útil cuando el widget no tiene ID registrado pero tiene texto reconocible '
-        '(e.g. opciones de un dropdown custom, items de menú).',
+        'Tap on a widget by searching for its visible text. '
+        'Useful when the widget has no registered ID but has recognizable text '
+        '(e.g. custom dropdown options, menu items).',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'label': {'type': 'string', 'description': 'Texto visible del widget a tapear'},
+        'label': {'type': 'string', 'description': 'Visible text of the widget to tap'},
       },
       'required': ['label'],
     },
@@ -315,32 +315,32 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'input_text',
     'description':
-        'Escribe texto en un TextField o TextFormField. Tienes DOS opciones:\n\n'
-        'OPCIÓN 1 — input_text con coordenadas (flujo normal):\n'
-        '  inspect_ui → toma x/y del campo → input_text(x, y, text)\n'
-        '  Hace tap en (x,y) para enfocar el campo, luego escribe con ADB.\n'
-        '  Si el campo ya tiene foco (auto_focus: true en inspect_ui), usa skip_focus_tap: true\n'
-        '  para no cerrar el teclado con el tap.\n\n'
-        'OPCIÓN 2 — run_command con ADB (fallback para diálogos y overlays):\n'
-        '  Cuando input_text falla en un diálogo o el tap no llega al campo correcto,\n'
-        '  usa run_command con: adb shell input text "tu_texto"\n'
-        '  Requiere que el campo ya esté enfocado (tocarlo antes con tap_at).\n'
-        '  Útil para: códigos de autenticación, PIN, campos en AlertDialog/BottomSheet.\n\n'
-        'Modo key (alternativo): solo si el widget tiene campo "key" en inspect_ui.',
+        'Types text into a TextField or TextFormField. You have TWO options:\n\n'
+        'OPTION 1 — input_text with coordinates (normal flow):\n'
+        '  inspect_ui → get x/y of the field → input_text(x, y, text)\n'
+        '  Taps at (x,y) to focus the field, then types via ADB.\n'
+        '  If the field already has focus (auto_focus: true in inspect_ui), use skip_focus_tap: true\n'
+        '  to avoid dismissing the keyboard with the tap.\n\n'
+        'OPTION 2 — run_command with ADB (fallback for dialogs and overlays):\n'
+        '  When input_text fails in a dialog or the tap does not reach the correct field,\n'
+        '  use run_command with: adb shell input text "your_text"\n'
+        '  Requires the field to already be focused (tap it first with tap_at).\n'
+        '  Useful for: auth codes, PIN fields, AlertDialog/BottomSheet inputs.\n\n'
+        'Key mode (alternative): only if the widget has a "key" field in inspect_ui.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'x': {'type': 'number', 'description': 'Coordenada X del campo (de inspect_ui)'},
-        'y': {'type': 'number', 'description': 'Coordenada Y del campo (de inspect_ui)'},
-        'key': {'type': 'string', 'description': 'ID del campo (solo si tiene campo "key" en inspect_ui)'},
-        'text': {'type': 'string', 'description': 'Texto a escribir'},
-        'clear_first': {'type': 'boolean', 'description': 'Limpiar campo antes de escribir (default: false)'},
+        'x': {'type': 'number', 'description': 'X coordinate of the field (from inspect_ui)'},
+        'y': {'type': 'number', 'description': 'Y coordinate of the field (from inspect_ui)'},
+        'key': {'type': 'string', 'description': 'Field ID (only if it has a "key" field in inspect_ui)'},
+        'text': {'type': 'string', 'description': 'Text to type'},
+        'clear_first': {'type': 'boolean', 'description': 'Clear field before typing (default: false)'},
         'skip_focus_tap': {
           'type': 'boolean',
           'description':
-              'Omitir el tap de foco antes de escribir (default: false). '
-              'Usar true cuando el campo tiene "auto_focus": true en inspect_ui, '
-              'o cuando el campo ya está enfocado y no quieres cerrar el teclado.',
+              'Skip the focus tap before typing (default: false). '
+              'Use true when the field has "auto_focus": true in inspect_ui, '
+              'or when the field is already focused and you do not want to dismiss the keyboard.',
         },
       },
       'required': ['text'],
@@ -348,11 +348,11 @@ final List<Map<String, dynamic>> toolDefinitions = [
   },
   {
     'name': 'clear_text',
-    'description': 'Limpia el contenido de un TextField sin escribir texto nuevo.',
+    'description': 'Clears the content of a TextField without typing new text.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del campo a limpiar'},
+        'key': {'type': 'string', 'description': 'ID of the field to clear'},
       },
       'required': ['key'],
     },
@@ -360,14 +360,14 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'select_dropdown',
     'description':
-        'Selecciona una opción de un DropdownButtonFormField estándar. '
-        'Para dropdowns custom (BottomSheet, overlay), usa tap_widget + tap_by_label.',
+        'Selects an option from a standard DropdownButtonFormField. '
+        'For custom dropdowns (BottomSheet, overlay), use tap_widget + tap_by_label.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del dropdown'},
-        'value': {'type': 'string', 'description': 'Valor a seleccionar (o parte del string del enum)'},
-        'index': {'type': 'integer', 'description': 'Índice 0-based (alternativa a value)'},
+        'key': {'type': 'string', 'description': 'Dropdown ID'},
+        'value': {'type': 'string', 'description': 'Value to select (or partial enum string)'},
+        'index': {'type': 'integer', 'description': '0-based index (alternative to value)'},
       },
       'required': ['key'],
     },
@@ -375,17 +375,17 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'toggle_widget',
     'description':
-        'Activa o desactiva un Checkbox, Switch o Radio button. '
-        'Modo coordenadas (PREFERIDO para dialogs/overlays): proporciona x/y '
-        'del control (de inspect_ui) — simula tap real que activa gestos del widget. '
-        'Modo key: solo si tiene campo "key" en inspect_ui. '
-        'Si x/y presentes, se usan las coordenadas aunque también haya key.',
+        'Toggles a Checkbox, Switch, or Radio button on or off. '
+        'Coordinate mode (PREFERRED for dialogs/overlays): provide x/y '
+        'of the control (from inspect_ui) — simulates a real tap that triggers widget gestures. '
+        'Key mode: only if it has a "key" field in inspect_ui. '
+        'If x/y are present, coordinates are used even if key is also provided.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'x': {'type': 'number', 'description': 'Coordenada X del control (de inspect_ui) — PREFERIDO'},
-        'y': {'type': 'number', 'description': 'Coordenada Y del control (de inspect_ui) — PREFERIDO'},
-        'key': {'type': 'string', 'description': 'ID del widget (si tiene campo "key" en inspect_ui)'},
+        'x': {'type': 'number', 'description': 'X coordinate of the control (from inspect_ui) — PREFERRED'},
+        'y': {'type': 'number', 'description': 'Y coordinate of the control (from inspect_ui) — PREFERRED'},
+        'key': {'type': 'string', 'description': 'Widget ID (if it has a "key" field in inspect_ui)'},
       },
       'required': [],
     },
@@ -393,39 +393,39 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'set_slider_value',
     'description':
-        'Posiciona un Slider a un valor relativo entre 0.0 (mínimo) y 1.0 (máximo).',
+        'Sets a Slider to a relative value between 0.0 (minimum) and 1.0 (maximum).',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del Slider'},
-        'value': {'type': 'number', 'description': 'Valor entre 0.0 y 1.0 (ej: 0.5 = mitad)'},
+        'key': {'type': 'string', 'description': 'Slider ID'},
+        'value': {'type': 'number', 'description': 'Value between 0.0 and 1.0 (e.g. 0.5 = midpoint)'},
       },
       'required': ['key', 'value'],
     },
   },
 
-  // ── Teclado y navegación ───────────────────────────────────────────────────
+  // ── Keyboard and navigation ────────────────────────────────────────────────
 
   {
     'name': 'hide_keyboard',
-    'description': 'Oculta el teclado virtual.',
+    'description': 'Hides the virtual keyboard.',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
   {
     'name': 'press_back',
     'description':
-        'Envía el evento Back del sistema operativo (botón físico de Android / gesto de iOS). '
-        'ADVERTENCIA: Si la pantalla actual es la pantalla raíz de la app (home/root), '
-        'este evento CIERRA la aplicación. '
-        'ANTES de llamar press_back, llama inspect_ui y busca: '
-        '(1) un widget de tipo BackButton, ArrowBackButton, o IconButton con tooltip "Back", '
-        '(2) el botón leading del AppBar — usa tap_at con sus coordenadas en su lugar. '
-        'Usa press_back SOLO cuando no haya botón de back visible en la pantalla '
-        'o cuando quieras cerrar un diálogo/overlay con el gesto del sistema.',
+        'Sends the OS Back event (Android physical button / iOS gesture). '
+        'WARNING: If the current screen is the app root screen (home/root), '
+        'this event CLOSES the application. '
+        'BEFORE calling press_back, call inspect_ui and look for: '
+        '(1) a BackButton, ArrowBackButton, or IconButton widget with tooltip "Back", '
+        '(2) the AppBar leading button — use tap_at with its coordinates instead. '
+        'Use press_back ONLY when there is no visible back button on screen '
+        'or when you want to close a dialog/overlay with the system gesture.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID de cualquier widget (opcional)'},
+        'key': {'type': 'string', 'description': 'Any widget ID (optional)'},
       },
       'required': [],
     },
@@ -433,54 +433,54 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'scroll_until_visible',
     'description':
-        'Scrollea un widget contenedor hasta que el widget objetivo sea visible en pantalla. '
-        'Usa esto cuando necesitas interactuar con un widget que está fuera del viewport.',
+        'Scrolls a container widget until the target widget is visible on screen. '
+        'Use this when you need to interact with a widget that is off-viewport.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget scrollable (ListView, etc.)'},
-        'target_key': {'type': 'string', 'description': 'ID del widget que debe quedar visible'},
-        'max_attempts': {'type': 'integer', 'description': 'Máximo de intentos de scroll (default: 20)'},
+        'key': {'type': 'string', 'description': 'Scrollable widget ID (ListView, etc.)'},
+        'target_key': {'type': 'string', 'description': 'ID of the widget that should become visible'},
+        'max_attempts': {'type': 'integer', 'description': 'Maximum scroll attempts (default: 20)'},
       },
       'required': ['key', 'target_key'],
     },
   },
 
-  // ── Utilidades ─────────────────────────────────────────────────────────────
+  // ── Utilities ──────────────────────────────────────────────────────────────
 
   {
     'name': 'wait',
-    'description': 'Espera un tiempo antes de continuar. Útil después de animaciones o transiciones.',
+    'description': 'Waits for a duration before continuing. Useful after animations or transitions.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'duration_ms': {'type': 'integer', 'description': 'Tiempo de espera en milisegundos'},
+        'duration_ms': {'type': 'integer', 'description': 'Wait time in milliseconds'},
       },
       'required': ['duration_ms'],
     },
   },
 
-  // ── Aserciones ─────────────────────────────────────────────────────────────
+  // ── Assertions ─────────────────────────────────────────────────────────────
 
   {
     'name': 'assert_exists',
-    'description': 'Verifica que el widget está registrado. No requiere que esté visible.',
+    'description': 'Verifies that the widget is registered. Does not require it to be visible.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget a verificar'},
+        'key': {'type': 'string', 'description': 'Widget ID to verify'},
       },
       'required': ['key'],
     },
   },
   {
     'name': 'assert_text',
-    'description': 'Verifica que el texto visible de un widget coincide con el esperado.',
+    'description': 'Verifies that the visible text of a widget matches the expected value.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget'},
-        'text': {'type': 'string', 'description': 'Texto esperado (match exacto)'},
+        'key': {'type': 'string', 'description': 'Widget ID'},
+        'text': {'type': 'string', 'description': 'Expected text (exact match)'},
       },
       'required': ['key', 'text'],
     },
@@ -488,34 +488,34 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'assert_visible',
     'description':
-        'Verifica que el widget está completamente visible en el viewport actual. '
-        'Falla si el widget está off-screen o tapado.',
+        'Verifies that the widget is fully visible in the current viewport. '
+        'Fails if the widget is off-screen or obscured.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget'},
+        'key': {'type': 'string', 'description': 'Widget ID'},
       },
       'required': ['key'],
     },
   },
   {
     'name': 'assert_enabled',
-    'description': 'Verifica que el widget está habilitado (no disabled).',
+    'description': 'Verifies that the widget is enabled (not disabled).',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget (Button, TextField, Checkbox, etc.)'},
+        'key': {'type': 'string', 'description': 'Widget ID (Button, TextField, Checkbox, etc.)'},
       },
       'required': ['key'],
     },
   },
   {
     'name': 'assert_selected',
-    'description': 'Verifica que un Checkbox, Switch o Radio está seleccionado/activado.',
+    'description': 'Verifies that a Checkbox, Switch, or Radio is selected/checked.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del Checkbox, Switch o Radio'},
+        'key': {'type': 'string', 'description': 'Checkbox, Switch, or Radio ID'},
       },
       'required': ['key'],
     },
@@ -523,25 +523,25 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'assert_value',
     'description':
-        'Verifica el valor del TextEditingController de un TextField. '
-        'A diferencia de assert_text, verifica el valor interno del campo, no el label.',
+        'Verifies the value of a TextField\'s TextEditingController. '
+        'Unlike assert_text, this checks the internal field value, not the label.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del TextField'},
-        'value': {'type': 'string', 'description': 'Valor esperado en el controller'},
+        'key': {'type': 'string', 'description': 'TextField ID'},
+        'value': {'type': 'string', 'description': 'Expected value in the controller'},
       },
       'required': ['key', 'value'],
     },
   },
   {
     'name': 'assert_count',
-    'description': 'Verifica que un Column, Row o ListView tiene exactamente N hijos.',
+    'description': 'Verifies that a Column, Row, or ListView has exactly N children.',
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'key': {'type': 'string', 'description': 'ID del widget contenedor'},
-        'count': {'type': 'integer', 'description': 'Cantidad esperada de hijos'},
+        'key': {'type': 'string', 'description': 'Container widget ID'},
+        'count': {'type': 'integer', 'description': 'Expected number of children'},
       },
       'required': ['key', 'count'],
     },
@@ -596,50 +596,50 @@ final List<Map<String, dynamic>> toolDefinitions = [
     },
   },
 
-  // ── Inspección del UI ──────────────────────────────────────────────────────
+  // ── UI inspection ──────────────────────────────────────────────────────────
 
   {
     'name': 'inspect_ui',
     'description':
-        'Recorre el widget tree completo y retorna TODOS los widgets con: '
-        'texto visible, x/y/w/h (coordenadas en logical pixels), tipo, estado. '
-        'Widgets con McpMetadataKey tienen además un campo "key" — '
-        'ese campo indica que la herramienta puede usarse con key-based tools (assert_*, tap_widget, etc.). '
-        'Sin campo "key": usa coordenadas → tap_at, input_text con x/y. '
-        'Con campo "key": puedes usar tanto coordenadas como el key. '
-        'SIEMPRE llama inspect_ui antes de input_text para obtener las coordenadas x/y del campo. '
-        'Widgets dentro de dialogs, BottomSheets o AlertDialogs tienen "overlay": true — '
-        'identifica qué widgets pertenecen al diálogo activo. '
-        'TextFields con "auto_focus": true ya tienen el foco al aparecer — '
-        'usa input_text con skip_focus_tap: true para no interrumpir el teclado. '
-        'CircularProgressIndicator, LinearProgressIndicator y RefreshProgressIndicator '
-        'tienen "loading": true — si aparecen, la UI está ocupada; '
-        'las herramientas de acción esperan automáticamente hasta que desaparezcan.',
+        'Traverses the full widget tree and returns ALL widgets with: '
+        'visible text, x/y/w/h (coordinates in logical pixels), type, state. '
+        'Widgets with McpMetadataKey also have a "key" field — '
+        'that field indicates the widget can be used with key-based tools (assert_*, tap_widget, etc.). '
+        'No "key" field: use coordinates → tap_at, input_text with x/y. '
+        'With "key" field: you can use either coordinates or the key. '
+        'ALWAYS call inspect_ui before input_text to get the x/y coordinates of the field. '
+        'Widgets inside dialogs, BottomSheets, or AlertDialogs have "overlay": true — '
+        'identify which widgets belong to the active dialog. '
+        'TextFields with "auto_focus": true already have focus when they appear — '
+        'use input_text with skip_focus_tap: true to avoid dismissing the keyboard. '
+        'CircularProgressIndicator, LinearProgressIndicator, and RefreshProgressIndicator '
+        'have "loading": true — if present, the UI is busy; '
+        'action tools automatically wait until they disappear.',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
   {
     'name': 'inspect_ui_compact',
     'description':
-        'Versión compacta de inspect_ui: agrupa los widgets en secciones '
-        'INTERACTIVE / TEXT / OTHER / OVERLAY / LOADING con centros pre-calculados. '
-        'Usa esto cuando la pantalla es simple y quieres ahorrar tokens. '
-        'Para pantallas complejas o widgets custom (third-party), usa inspect_ui '
-        'para obtener el JSON completo con todos los widgets y coordenadas exactas.',
+        'Compact version of inspect_ui: groups widgets into sections '
+        'INTERACTIVE / TEXT / OTHER / OVERLAY / LOADING with pre-calculated centers. '
+        'Use this when the screen is simple and you want to save tokens. '
+        'For complex screens or custom (third-party) widgets, use inspect_ui '
+        'to get the full JSON with all widgets and exact coordinates.',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
   {
     'name': 'capture_screenshot',
     'description':
-        'Captura la pantalla actual como imagen PNG. '
-        'Usar para: detectar problemas visuales, layout roto, colores incorrectos '
-        'o verificación visual general. '
-        'En Android usa ADB screencap (siempre disponible, debug y release). '
-        'En desktop usa el layer tree de Flutter (solo debug/profile). '
-        'Para verificar valores de datos, prefer inspect_ui (más eficiente en tokens).',
+        'Captures the current screen as a PNG image. '
+        'Use for: detecting visual issues, broken layout, incorrect colors, '
+        'or general visual verification. '
+        'On Android uses ADB screencap (always available, debug and release). '
+        'On desktop uses the Flutter layer tree (debug/profile only). '
+        'To verify data values, prefer inspect_ui (more token-efficient).',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
 
-  // ── Ejecución de comandos ──────────────────────────────────────────────────
+  // ── Command execution ──────────────────────────────────────────────────────
 
   {
     'name': 'run_command',
@@ -711,40 +711,40 @@ final List<Map<String, dynamic>> toolDefinitions = [
   },
 ];
 
-// ── Implementación de herramientas ────────────────────────────────────────────
+// ── Tool implementation ──────────────────────────────────────────────────────
 
-/// Ejecuta la herramienta [name] con los argumentos [args] via HTTP a la app.
+/// Executes the tool [name] with the arguments [args] via HTTP to the app.
 ///
-/// Retorna un MCP content array:
-/// - Texto: `[{"type":"text","text":"..."}]`
-/// - Imagen: `[{"type":"image","data":"<base64>","mimeType":"image/png"}]`
+/// Returns an MCP content array:
+/// - Text: `[{"type":"text","text":"..."}]`
+/// - Image: `[{"type":"image","data":"<base64>","mimeType":"image/png"}]`
 ///
-/// Traduce cada tool a la llamada HTTP correspondiente:
-/// - Gestos simples → GET /action?key=...&type=...
-/// - Aserciones → POST /event con JSON
-/// - wait → Future.delayed local (sin HTTP)
-/// - inspect_ui → GET /mcp/tree (texto JSON)
-/// - capture_screenshot → GET /mcp/screenshot (imagen PNG)
+/// Translates each tool to the corresponding HTTP call:
+/// - Simple gestures → GET /action?key=...&type=...
+/// - Assertions → POST /event with JSON
+/// - wait → local Future.delayed (no HTTP)
+/// - inspect_ui → GET /mcp/tree (JSON text)
+/// - capture_screenshot → GET /mcp/screenshot (PNG image)
 ///
-/// La función NO es async: cada rama del switch retorna directamente un
-/// Future<List<...>> para mantener consistencia de tipos en el switch expression.
+/// The function is NOT async: each switch branch returns a
+/// Future<List<...>> directly to maintain type consistency in the switch expression.
 Future<List<Map<String, dynamic>>> callTool(
     DeviceRegistry registry, String name, Map<String, dynamic> args) {
   final bridge = registry.active; // all 29 existing cases use this — zero changes needed below
 
-  // Helper: envolver texto en MCP content array
+  // Helper: wrap text in MCP content array
   List<Map<String, dynamic>> t(String s) => [{'type': 'text', 'text': s}];
 
-  // Helper: envolver imagen en MCP content array
+  // Helper: wrap image in MCP content array
   List<Map<String, dynamic>> img(String base64) =>
       [{'type': 'image', 'data': base64, 'mimeType': 'image/png'}];
 
-  // Helper: encode key para URL
+  // Helper: encode key for URL
   String k(String key) => Uri.encodeQueryComponent(key);
 
   return switch (name) {
 
-    // ── Contexto ─────────────────────────────────────────────────────────────
+    // ── Context ──────────────────────────────────────────────────────────────
     'get_app_context' || 'list_test_cases' => () async {
       final ctx = await bridge.get('/mcp/context');
       final data = jsonDecode(ctx) as Map<String, dynamic>;
@@ -771,7 +771,7 @@ Future<List<Map<String, dynamic>>> callTool(
       return t(jsonEncode(data));
     }(),
 
-    // ── Gestos básicos ────────────────────────────────────────────────────────
+    // ── Basic gestures ────────────────────────────────────────────────────────
     'tap_widget' =>
       _thenWaitIdle(
         _withCoordFallback(
@@ -988,7 +988,7 @@ Future<List<Map<String, dynamic>>> callTool(
         return bridge.get('/action?key=${k(args['key'])}&type=setslidervalue&sliderValue=$val').then(t);
       }(),
 
-    // ── Teclado y navegación ──────────────────────────────────────────────────
+    // ── Keyboard and navigation ───────────────────────────────────────────────
     'hide_keyboard' =>
       bridge.get('/action?key=_keyboard&type=hidekeyboard').then(t),
 
@@ -1049,14 +1049,14 @@ Future<List<Map<String, dynamic>>> callTool(
         return bridge.get('/action?key=$key&type=scrolluntilvisible&targetKey=$target&maxScrollAttempts=$maxA').then(t);
       }(),
 
-    // ── Utilidades ────────────────────────────────────────────────────────────
+    // ── Utilities ─────────────────────────────────────────────────────────────
     'wait' => () async {
         final ms = _toInt(args['duration_ms']);
         await Future.delayed(Duration(milliseconds: ms));
         return t(jsonEncode({'ok': true, 'waited_ms': ms}));
       }(),
 
-    // ── Aserciones ────────────────────────────────────────────────────────────
+    // ── Assertions ────────────────────────────────────────────────────────────
     'assert_exists' =>
       bridge.post('/event', {'key': args['key'], 'type': 'assertExists', 'params': {}}).then(t),
 
@@ -1115,7 +1115,7 @@ Future<List<Map<String, dynamic>>> callTool(
         bridge: bridge,
       ),
 
-    // ── Inspección del UI ──────────────────────────────────────────────────────
+    // ── UI inspection ────────────────────────────────────────────────────────
     // Returns raw JSON widget tree — full fidelity, all widget types visible.
     'inspect_ui' =>
       bridge.get('/mcp/tree').then((raw) => t(raw)),
@@ -1157,7 +1157,7 @@ Future<List<Map<String, dynamic>>> callTool(
         }
       }(),
 
-    // ── Ejecución de comandos ─────────────────────────────────────────────────
+    // ── Command execution ─────────────────────────────────────────────────────
     'run_command' => () async {
       final command = args['command'] as String? ?? '';
       final workingDir = args['working_dir'] as String?;
@@ -1305,34 +1305,34 @@ Future<List<Map<String, dynamic>>> callTool(
       }));
     }(),
 
-    _ => Future.error(Exception('Herramienta desconocida: $name')),
+    _ => Future.error(Exception('Unknown tool: $name')),
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _compactTree — formato compacto para inspect_ui
+// _compactTree — compact format for inspect_ui
 //
-// Transforma el JSON plano del árbol de widgets en texto accionable para el LLM.
-// Reduce ~90% los tokens respecto al JSON verboso original.
+// Transforms the flat widget tree JSON into actionable text for the LLM.
+// Reduces ~90% of tokens compared to the verbose original JSON.
 //
-// Estructura del output:
+// Output structure:
 //   Screen: <AppBar title> (<N> widgets)
 //
-//   INTERACTIVE:          ← botones, campos, toggles, sliders, dropdowns
+//   INTERACTIVE:          ← buttons, fields, toggles, sliders, dropdowns
 //     Type  label  →  tap_at(cx, cy)   [disabled] [overlay]
 //
-//   TEXT:                 ← texto visible no interactivo
+//   TEXT:                 ← visible non-interactive text
 //     "value"
 //
-//   OVERLAY [depth: N]:   ← diálogos y bottom sheets activos
-//     AlertDialog  "título"
+//   OVERLAY [depth: N]:   ← active dialogs and bottom sheets
+//     AlertDialog  "title"
 //     ElevatedButton "OK"  →  tap_at(cx, cy)  [overlay]
 //
 //   LOADING: none | CircularProgressIndicator
 //
-// El campo depth se preserva SOLO para widgets overlay, donde indica la capa
-// del diálogo y ayuda al LLM a distinguir elementos del diálogo vs pantalla.
-// Para widgets normales, depth es ruido y se omite.
+// The depth field is preserved ONLY for overlay widgets, where it indicates the
+// dialog layer and helps the LLM distinguish dialog elements from screen elements.
+// For normal widgets, depth is noise and is omitted.
 // ─────────────────────────────────────────────────────────────────────────────
 
 String _compactTree(String rawJson) {

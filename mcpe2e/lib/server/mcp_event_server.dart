@@ -1,26 +1,26 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // McpEventServer
 //
-// Servidor HTTP embebido en la app Flutter. Es la interfaz de red entre el
-// servidor MCP externo (mcpe2e_server) y el sistema de ejecución de eventos.
+// HTTP server embedded in the Flutter app. It is the network interface between
+// the external MCP server (mcpe2e_server) and the event execution system.
 //
-// Responsabilidad: únicamente enrutar requests HTTP a McpEvents.
-// No ejecuta gestos, no maneja conectividad de plataforma, no conoce MCP.
+// Responsibility: only route HTTP requests to McpEvents.
+// Does not execute gestures, does not handle platform connectivity, does not know MCP.
 //
 // Endpoints:
 //
-//   GET  /ping                  Health check — confirma que el server está vivo
-//   GET  /mcp/context           Contexto completo: screen + todos los widgets
-//   GET  /action?key=...        Ejecuta evento con parámetros en URL
-//   POST /event                 Ejecuta evento con JSON body
-//   GET  /widgets               Lista widgets registrados
+//   GET  /ping                  Health check — confirms the server is alive
+//   GET  /mcp/context           Full context: screen + all widgets
+//   GET  /action?key=...        Executes event with URL parameters
+//   POST /event                 Executes event with JSON body
+//   GET  /widgets               Lists registered widgets
 //
-// Conectividad por plataforma (configurada por McpConnectivity, no aquí):
+// Platform connectivity (configured by McpConnectivity, not here):
 //
 //   Android  → ADB forward localhost:7778 → device:7777
 //   iOS      → iproxy localhost:7778 → device:7777
-//   Desktop  → localhost:7777 directo (sin forwarding)
-//   Web      → no soportado
+//   Desktop  → localhost:7777 direct (no forwarding)
+//   Web      → not supported
 //
 // Usage:
 //   await McpEventServer.start();   // call once in main()
@@ -64,21 +64,21 @@ class McpEventServer {
   static bool _isRunning = false;
   static final _observer = _McpLifecycleObserver();
 
-  /// Puerto donde escucha el HTTP server dentro de la app (default 7777).
+  /// Port where the HTTP server listens inside the app (default 7777).
   static int port = 7777;
 
-  /// Host de bind. 0.0.0.0 permite acceso desde ADB forward e iproxy.
+  /// Bind host. 0.0.0.0 allows access from ADB forward and iproxy.
   static String host = '0.0.0.0';
 
-  /// Puerto local en la PC del dev para el forwarding (default port + 1).
+  /// Local port on the dev's PC for forwarding (default port + 1).
   static int forwardPort = 7778;
 
-  // ── Ciclo de vida ─────────────────────────────────────────────────────────
+  // ── Lifecycle ────────────────────────────────────────────────────────────
 
-  /// Inicia el servidor HTTP y configura la conectividad de plataforma.
+  /// Starts the HTTP server and configures platform connectivity.
   ///
-  /// Si ya está corriendo, no hace nada.
-  /// Loggea los endpoints disponibles y cómo configurar TESTBRIDGE_URL.
+  /// If already running, does nothing.
+  /// Logs available endpoints and how to configure TESTBRIDGE_URL.
   static Future<void> start({
     int? customPort,
     String? customHost,
@@ -86,18 +86,18 @@ class McpEventServer {
   }) async {
     Log.init(level: Level.SEVERE);
 
-    // Guard de producción: el server no debe correr en release builds.
-    // En release, los mecanismos de inspección (debugLayer, visitChildElements
-    // para debug info) no están disponibles o retornan datos incompletos.
+    // Production guard: the server must not run in release builds.
+    // In release, inspection mechanisms (debugLayer, visitChildElements
+    // for debug info) are not available or return incomplete data.
     if (!kDebugMode && !kProfileMode) {
       Log.i(
-        '[Server] ⚠️  McpEventServer no debe correr en producción. Abortando.',
+        '[Server] ⚠️  McpEventServer must not run in production. Aborting.',
       );
       return;
     }
 
     if (_isRunning) {
-      Log.i('[Server] Ya corriendo en http://$host:$port');
+      Log.i('[Server] Already running at http://$host:$port');
       return;
     }
 
@@ -127,7 +127,7 @@ class McpEventServer {
         },
       );
     } catch (e) {
-      Log.i('[Server] ❌ No se pudo iniciar: $e');
+      Log.i('[Server] ❌ Failed to start: $e');
       _isRunning = false;
       rethrow;
     }
@@ -140,12 +140,12 @@ class McpEventServer {
     await _server!.close(force: true);
     _server = null;
     _isRunning = false;
-    Log.i('[Server] 🛑 Detenido');
+    Log.i('[Server] 🛑 Stopped');
   }
 
   // ── Routing ───────────────────────────────────────────────────────────────
 
-  /// Enruta cada request al handler correspondiente.
+  /// Routes each request to the corresponding handler.
   static Future<void> _handleRequest(HttpRequest request) async {
     Log.i('[Server] ${request.method} ${request.uri.path}');
     try {
@@ -165,31 +165,31 @@ class McpEventServer {
         case '/widgets':
           _handleWidgets(request);
         default:
-          _send(request, 404, 'text/plain', 'Endpoint no encontrado');
+          _send(request, 404, 'text/plain', 'Endpoint not found');
       }
     } catch (e) {
-      Log.i('[Server] Error procesando request: $e');
-      _send(request, 500, 'text/plain', 'Error interno: $e');
+      Log.i('[Server] Error processing request: $e');
+      _send(request, 500, 'text/plain', 'Internal error: $e');
     }
   }
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  /// GET /ping — Health check básico.
+  /// GET /ping — Basic health check.
   ///
-  /// El servidor MCP externo llama este endpoint para verificar que la app
-  /// está viva antes de ejecutar comandos.
-  /// Responde: {"status":"ok","port":7777}
+  /// The external MCP server calls this endpoint to verify that the app
+  /// is alive before executing commands.
+  /// Responds: {"status":"ok","port":7777}
   static void _handlePing(HttpRequest req) {
     _sendJson(req, {'status': 'ok', 'port': port});
   }
 
-  /// GET /mcp/context — Contexto completo de la app.
+  /// GET /mcp/context — Full app context.
   ///
-  /// Retorna todos los widgets registrados con su metadata y capabilities.
-  /// Claude llama este endpoint primero para saber qué hay en pantalla.
+  /// Returns all registered widgets with their metadata and capabilities.
+  /// Claude calls this endpoint first to know what is on screen.
   ///
-  /// Respuesta:
+  /// Response:
   /// ```json
   /// {
   ///   "screen": "LoginScreen",
@@ -206,16 +206,16 @@ class McpEventServer {
     ));
   }
 
-  /// GET /mcp/tree — Árbol de widgets con datos de la pantalla actual.
+  /// GET /mcp/tree — Widget tree with data from the current screen.
   ///
-  /// Recorre el widget tree completo desde la raíz y retorna todos los widgets
-  /// con datos relevantes: textos, valores de campos, estados de botones,
+  /// Walks the full widget tree from the root and returns all widgets
+  /// with relevant data: texts, field values, button states,
   /// checkboxes, switches, sliders, etc.
   ///
-  /// No requiere que los widgets estén registrados en McpWidgetRegistry.
-  /// Funciona con cualquier widget de la app.
+  /// Does not require widgets to be registered in McpWidgetRegistry.
+  /// Works with any widget in the app.
   ///
-  /// Respuesta:
+  /// Response:
   /// ```json
   /// {
   ///   "timestamp": "...",
@@ -233,12 +233,12 @@ class McpEventServer {
     _sendJson(req, McpTreeInspector.inspect());
   }
 
-  /// GET /mcp/screenshot — Captura la pantalla como PNG en base64.
+  /// GET /mcp/screenshot — Captures the screen as PNG in base64.
   ///
-  /// Usa el layer tree interno de Flutter: cero widgets extras en el árbol.
-  /// Solo disponible en debug/profile; retorna error en release.
+  /// Uses Flutter's internal layer tree: zero extra widgets in the tree.
+  /// Only available in debug/profile; returns error in release.
   ///
-  /// Respuesta (éxito):
+  /// Response (success):
   /// ```json
   /// {
   ///   "format": "png",
@@ -249,7 +249,7 @@ class McpEventServer {
   /// }
   /// ```
   ///
-  /// Respuesta (release mode):
+  /// Response (release mode):
   /// ```json
   /// { "error": "not_available_in_release" }
   /// ```
@@ -257,18 +257,18 @@ class McpEventServer {
     _sendJson(req, await McpScreenCapture.capture());
   }
 
-  /// GET /action?key=...&type=...&[params] — Ejecuta evento con params en URL.
+  /// GET /action?key=...&type=...&[params] — Executes event with URL params.
   ///
-  /// Parámetros obligatorios:
-  ///   key   — ID del widget (e.g. "auth.login_button")
-  ///   type  — tipo de evento (default "tap")
+  /// Required parameters:
+  ///   key   — widget ID (e.g. "auth.login_button")
+  ///   type  — event type (default "tap")
   ///
-  /// Parámetros opcionales (según el tipo de evento):
+  /// Optional parameters (depending on event type):
   ///   text, duration, distance, direction, deltaX, deltaY, clearFirst,
   ///   expectedText, scale, dropdownValue, dropdownIndex, sliderValue,
   ///   targetKey, maxScrollAttempts, label, expectedCount
   ///
-  /// Ejemplos:
+  /// Examples:
   ///   GET /action?key=auth.login_button
   ///   GET /action?key=auth.email_field&type=textinput&text=user@test.com
   ///   GET /action?key=filter.active&type=toggle
@@ -278,14 +278,14 @@ class McpEventServer {
     final key = params['key'];
 
     if (key == null) {
-      _send(req, 400, 'text/plain', 'Parámetro "key" requerido');
+      _send(req, 400, 'text/plain', 'Parameter "key" required');
       return;
     }
 
     final typeStr = params['type'] ?? 'tap';
     final eventType = _parseEventType(typeStr);
     if (eventType == null) {
-      _send(req, 400, 'text/plain', 'Tipo de evento inválido: $typeStr');
+      _send(req, 400, 'text/plain', 'Invalid event type: $typeStr');
       return;
     }
 
@@ -301,13 +301,13 @@ class McpEventServer {
       req,
       200,
       'text/plain',
-      success ? 'OK: $typeStr en "$key"' : 'Error: $typeStr en "$key" falló',
+      success ? 'OK: $typeStr on "$key"' : 'Error: $typeStr on "$key" failed',
     );
   }
 
-  /// POST /event — Ejecuta evento con JSON body.
+  /// POST /event — Executes event with JSON body.
   ///
-  /// Body esperado:
+  /// Expected body:
   /// ```json
   /// {
   ///   "key": "auth.login_button",
@@ -316,13 +316,13 @@ class McpEventServer {
   /// }
   /// ```
   ///
-  /// Responde:
+  /// Responds:
   /// ```json
   /// { "success": true, "widgetKey": "...", "eventType": "tap" }
   /// ```
   static Future<void> _handleEvent(HttpRequest req) async {
     if (req.method != 'POST') {
-      _send(req, 405, 'text/plain', 'Método no permitido. Usa POST.');
+      _send(req, 405, 'text/plain', 'Method not allowed. Use POST.');
       return;
     }
 
@@ -332,13 +332,13 @@ class McpEventServer {
     final key = json['key'] as String?;
     final typeStr = json['type'] as String?;
     if (key == null || typeStr == null) {
-      _send(req, 400, 'text/plain', 'Body requiere "key" y "type"');
+      _send(req, 400, 'text/plain', 'Body requires "key" and "type"');
       return;
     }
 
     final eventType = _parseEventType(typeStr);
     if (eventType == null) {
-      _send(req, 400, 'text/plain', 'Tipo inválido: $typeStr');
+      _send(req, 400, 'text/plain', 'Invalid type: $typeStr');
       return;
     }
 
@@ -359,10 +359,10 @@ class McpEventServer {
     });
   }
 
-  /// GET /widgets — Lista los widgets registrados.
+  /// GET /widgets — Lists registered widgets.
   ///
-  /// Sin parámetros: retorna solo los IDs.
-  /// Con ?metadata=true: retorna contexto completo (igual que /mcp/context).
+  /// Without parameters: returns only IDs.
+  /// With ?metadata=true: returns full context (same as /mcp/context).
   static void _handleWidgets(HttpRequest req) {
     final full = req.uri.queryParameters['metadata'] == 'true';
     if (full) {
@@ -374,9 +374,9 @@ class McpEventServer {
 
   // ── Parsing ───────────────────────────────────────────────────────────────
 
-  /// Convierte el string del tipo de evento a [McpEventType].
+  /// Converts the event type string to [McpEventType].
   ///
-  /// Acepta camelCase y snake_case indistintamente.
+  /// Accepts both camelCase and snake_case.
   static McpEventType? _parseEventType(String type) {
     return switch (type.toLowerCase()) {
       'tap' => McpEventType.tap,
@@ -410,7 +410,7 @@ class McpEventServer {
     };
   }
 
-  /// Convierte los query parameters de URL a [McpEventParams].
+  /// Converts URL query parameters to [McpEventParams].
   static McpEventParams _parseUrlParams(Map<String, String> p) {
     return McpEventParams(
       text: p['text'],
@@ -444,7 +444,7 @@ class McpEventServer {
     );
   }
 
-  // ── Helpers de respuesta ──────────────────────────────────────────────────
+  // ── Response helpers ─────────────────────────────────────────────────────
 
   static void _sendJson(HttpRequest req, Map<String, dynamic> body) {
     _send(req, 200, 'application/json', jsonEncode(body));
@@ -487,10 +487,10 @@ class McpEventServer {
     Log.d('║   GET  /widgets                                  ║');
     Log.d('╠══════════════════════════════════════════════════╣');
     if (info.connectCommand.isNotEmpty) {
-      Log.d('║ En tu PC, ejecuta:                               ║');
+      Log.d('║ On your PC, run:                                  ║');
       Log.d('║   ${info.connectCommand.padRight(48)}║');
     }
-    Log.d('║ Luego inicia mcpe2e_server con:                  ║');
+    Log.d('║ Then start mcpe2e_server with:                   ║');
     Log.d(
       '║   TESTBRIDGE_URL=${info.mcpServerUrl}${' ' * (32 - info.mcpServerUrl.length)}║',
     );

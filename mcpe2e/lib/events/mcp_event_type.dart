@@ -1,35 +1,35 @@
 import 'dart:ui';
 
-/// Enum que define todos los tipos de eventos disponibles
+/// Enum defining all available event types
 enum McpEventType {
-  /// Tap simple en un widget
+  /// Simple tap on a widget
   tap,
 
-  /// Tap sostenido/prolongado
+  /// Long press / sustained tap
   longPress,
 
-  /// Escribir texto en un TextField
+  /// Type text into a TextField
   textInput,
 
-  /// Deslizamiento direccional
+  /// Directional swipe
   swipe,
 
-  /// Scroll con deltas
+  /// Scroll with deltas
   scroll,
 
-  /// Ocultar teclado
+  /// Hide keyboard
   hideKeyboard,
 
-  /// Mostrar teclado
+  /// Show keyboard
   showKeyboard,
 
-  /// Esperar/delay
+  /// Wait / delay
   wait,
 
-  /// Verificar que widget existe
+  /// Assert that a widget exists
   assertExists,
 
-  /// Verificar texto de widget
+  /// Assert widget text
   assertText,
 
   /// Double tap
@@ -41,49 +41,49 @@ enum McpEventType {
   /// Pinch (zoom)
   pinch,
 
-  /// Seleccionar opción de dropdown por valor o índice
+  /// Select dropdown option by value or index
   selectDropdown,
 
-  /// Activar/desactivar Checkbox, Switch o Radio
+  /// Toggle Checkbox, Switch, or Radio on/off
   toggle,
 
-  /// Posicionar Slider a un valor 0.0–1.0 (porcentaje del track)
+  /// Set Slider to a value 0.0–1.0 (percentage of track)
   setSliderValue,
 
-  /// Navegar atrás (pop de ruta)
+  /// Navigate back (route pop)
   pressBack,
 
-  /// Limpiar TextField sin escribir texto
+  /// Clear TextField without typing text
   clearText,
 
-  /// Scrollear padre hasta que el widget target sea visible en viewport
+  /// Scroll parent until the target widget is visible in the viewport
   scrollUntilVisible,
 
-  /// Verificar que el widget está visible en el viewport actual
+  /// Assert that the widget is visible in the current viewport
   assertVisible,
 
-  /// Verificar que el widget está habilitado (no disabled)
+  /// Assert that the widget is enabled (not disabled)
   assertEnabled,
 
-  /// Verificar el estado checked de Checkbox, Switch o Radio
+  /// Assert the checked state of a Checkbox, Switch, or Radio
   assertSelected,
 
-  /// Verificar el valor del TextEditingController (no el display text)
+  /// Assert the TextEditingController value (not the display text)
   assertValue,
 
-  /// Verificar cantidad de hijos en un ListView/Column
+  /// Assert the number of children in a ListView/Column
   assertCount,
 
-  /// Tapear el widget cuyo texto interno coincide con el label dado
+  /// Tap the widget whose inner text matches the given label
   tapByLabel,
 
-  /// Tap en coordenadas absolutas de pantalla (sin necesidad de widget registrado)
+  /// Tap at absolute screen coordinates (no registered widget needed)
   tapAt,
 }
 
-/// Parámetros adicionales para eventos
+/// Additional parameters for events
 class McpEventParams {
-  // Parámetros comunes
+  // Common parameters
   final String? text;
   final Duration? duration;
   final double? distance;
@@ -95,26 +95,26 @@ class McpEventParams {
   final Offset? targetPosition;
   final double? scale;
 
-  // Dropdown específico
-  final String? dropdownValue; // Valor a seleccionar (ej: "food", "transport")
-  final int? dropdownIndex; // O índice de la opción (0-based)
+  // Dropdown-specific
+  final String? dropdownValue; // Value to select (e.g.: "food", "transport")
+  final int? dropdownIndex; // Or option index (0-based)
 
   // Slider
-  final double? sliderValue; // Valor 0.0–1.0 (porcentaje del track)
+  final double? sliderValue; // Value 0.0–1.0 (percentage of track)
 
   // scrollUntilVisible
-  final String? targetKey; // Key del widget a hacer visible
-  final int? maxScrollAttempts; // Máximo de intentos (default: 20)
+  final String? targetKey; // Key of the widget to make visible
+  final int? maxScrollAttempts; // Maximum attempts (default: 20)
 
   // tapByLabel
-  final String? label; // Texto visible del widget a tapear
+  final String? label; // Visible text of the widget to tap
 
   // assertCount
-  final int? expectedCount; // Cantidad esperada de hijos
+  final int? expectedCount; // Expected number of children
 
-  // tapAt — coordenadas absolutas de pantalla
-  final double? dx; // Coordenada X absoluta en logical pixels
-  final double? dy; // Coordenada Y absoluta en logical pixels
+  // tapAt — absolute screen coordinates
+  final double? dx; // Absolute X coordinate in logical pixels
+  final double? dy; // Absolute Y coordinate in logical pixels
 
   const McpEventParams({
     this.text,
@@ -138,7 +138,7 @@ class McpEventParams {
     this.dy,
   });
 
-  /// Crear desde Map (útil para HTTP requests)
+  /// Create from Map (useful for HTTP requests)
   factory McpEventParams.fromJson(Map<String, dynamic> json) {
     return McpEventParams(
       text: json['text'] as String?,
@@ -164,7 +164,7 @@ class McpEventParams {
     );
   }
 
-  /// Convertir a Map (útil para logging)
+  /// Convert to Map (useful for logging)
   Map<String, dynamic> toJson() {
     return {
       if (text != null) 'text': text,

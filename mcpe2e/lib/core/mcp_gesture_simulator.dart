@@ -1,20 +1,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // McpGestureSimulator
 //
-// Capa de simulación de gestos físicos sobre el árbol de renderizado de Flutter.
+// Physical gesture simulation layer on top of Flutter's render tree.
 //
-// Traduce coordenadas (Offset) en eventos de puntero que Flutter procesa igual
-// que si fueran toques reales del usuario. No conoce nada de MCP, widgets
-// registrados ni tipos de eventos — solo recibe posiciones y genera eventos.
+// Translates coordinates (Offset) into pointer events that Flutter processes
+// just as if they were real user touches. Knows nothing about MCP, registered
+// widgets, or event types — only receives positions and generates events.
 //
-// Mecanismo: GestureBinding.instance.handlePointerEvent() acepta PointerEvent
-// sintéticos, que Flutter enruta al GestureDetector correcto según la posición.
-// Esto funciona en debug y profile mode; en release mode las mismas APIs operan.
+// Mechanism: GestureBinding.instance.handlePointerEvent() accepts synthetic
+// PointerEvents, which Flutter routes to the correct GestureDetector based on
+// position. This works in debug and profile mode; in release mode the same APIs operate.
 //
-// Flujo:
-//   Executor calcula posición via RenderBox → pasa Offset aquí →
-//   GestureSimulator genera PointerEvents → GestureBinding los enruta →
-//   Widget responde igual que a un toque real
+// Flow:
+//   Executor calculates position via RenderBox → passes Offset here →
+//   GestureSimulator generates PointerEvents → GestureBinding routes them →
+//   Widget responds just as it would to a real touch
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/gestures.dart';
@@ -23,39 +23,39 @@ import 'package:logger_rs/logger_rs.dart';
 
 // ── Simulator ────────────────────────────────────────────────────────────────
 
-/// Simulador de gestos de bajo nivel.
+/// Low-level gesture simulator.
 ///
-/// Opera sobre coordenadas globales de pantalla. El llamador es responsable
-/// de calcular las coordenadas correctas a partir del RenderBox del widget.
+/// Operates on global screen coordinates. The caller is responsible
+/// for calculating the correct coordinates from the widget's RenderBox.
 class McpGestureSimulator {
   McpGestureSimulator._();
 
   static final McpGestureSimulator instance = McpGestureSimulator._();
 
-  // Contador incremental de pointer IDs para evitar colisiones entre gestos
-  // concurrentes (aunque en la práctica los gestos son secuenciales).
+  // Incremental pointer ID counter to avoid collisions between concurrent
+  // gestures (although in practice gestures are sequential).
   int _pointerCounter = 1;
 
   int get _nextPointer => _pointerCounter++;
 
-  // ── Helpers de posición ──────────────────────────────────────────────────
+  // ── Position helpers ──────────────────────────────────────────────────
 
-  /// Calcula el centro de un [RenderBox] en coordenadas globales de pantalla.
+  /// Calculates the center of a [RenderBox] in global screen coordinates.
   ///
-  /// Usa localToGlobal(Offset.zero) para convertir la esquina superior-izquierda
-  /// a coordenadas globales, y luego suma la mitad del tamaño del widget.
+  /// Uses localToGlobal(Offset.zero) to convert the top-left corner
+  /// to global coordinates, then adds half the widget's size.
   Offset centerOf(RenderBox renderBox) {
     final origin = renderBox.localToGlobal(Offset.zero);
     return origin + Offset(renderBox.size.width / 2, renderBox.size.height / 2);
   }
 
-  // ── Gestos simples ───────────────────────────────────────────────────────
+  // ── Simple gestures ───────────────────────────────────────────────────────
 
-  /// Simula un tap (toque rápido) en la posición [position].
+  /// Simulates a tap (quick touch) at the [position].
   ///
-  /// Genera un PointerDownEvent seguido inmediatamente de un PointerUpEvent.
-  /// Flutter interpreta esta secuencia como un tap completo y activa los
-  /// GestureDetector con onTap / onPressed que contengan esa posición.
+  /// Generates a PointerDownEvent immediately followed by a PointerUpEvent.
+  /// Flutter interprets this sequence as a complete tap and triggers the
+  /// GestureDetectors with onTap / onPressed that contain that position.
   void simulateTap(Offset position) {
     final pointer = _nextPointer;
     Log.i(
@@ -69,15 +69,15 @@ class McpGestureSimulator {
     );
   }
 
-  /// Simula un swipe (deslizamiento) desde [start] hasta [end] en [duration].
+  /// Simulates a swipe from [start] to [end] over [duration].
   ///
-  /// Interpolación lineal de 20 pasos usando Future.delayed para respetar el
-  /// timing. Flutter necesita ver PointerMoveEvents intermedios para reconocer
-  /// el gesto como swipe y no como tap largo.
+  /// Linear interpolation of 20 steps using Future.delayed to respect
+  /// timing. Flutter needs to see intermediate PointerMoveEvents to recognize
+  /// the gesture as a swipe and not as a long press.
   ///
-  /// Nota: los Future.delayed son fire-and-forget intencionales — el caller
-  /// no necesita esperar a que todos los eventos se emitan porque Flutter
-  /// los procesa en el mismo isolate de UI.
+  /// Note: the Future.delayed calls are intentionally fire-and-forget — the
+  /// caller does not need to wait for all events to be emitted because Flutter
+  /// processes them on the same UI isolate.
   void simulateSwipe(Offset start, Offset end, Duration duration) {
     const steps = 20;
     final stepMs = duration.inMilliseconds ~/ steps;
@@ -108,10 +108,10 @@ class McpGestureSimulator {
     });
   }
 
-  /// Simula un evento de scroll en [position] con los deltas dados.
+  /// Simulates a scroll event at [position] with the given deltas.
   ///
-  /// PointerScrollEvent es el mecanismo estándar para scroll de mouse/trackpad.
-  /// En dispositivos táctiles, el scroll se logra mejor con [simulateSwipe].
+  /// PointerScrollEvent is the standard mechanism for mouse/trackpad scrolling.
+  /// On touch devices, scrolling is better achieved with [simulateSwipe].
   void simulateScroll(Offset position, {double deltaX = 0, double deltaY = 0}) {
     Log.i('[Gesture] 📜 SCROLL en $position (dx=$deltaX, dy=$deltaY)');
     GestureBinding.instance.handlePointerEvent(

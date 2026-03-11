@@ -2,23 +2,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // McpEventExecutor
 //
-// Motor de ejecución de eventos MCP sobre el árbol de widgets de Flutter.
+// MCP event execution engine on the Flutter widget tree.
 //
-// Recibe un (widgetKey, McpEventType, McpEventParams) y despacha la acción
-// correcta: navegar el widget tree, leer estado, simular gestos o ejecutar
-// callbacks directamente. Retorna true si tuvo éxito, false si algo falló
-// (widget no encontrado, parámetros faltantes, estado inválido).
+// Receives a (widgetKey, McpEventType, McpEventParams) and dispatches the
+// correct action: navigate the widget tree, read state, simulate gestures, or
+// execute callbacks directly. Returns true on success, false on failure
+// (widget not found, missing parameters, invalid state).
 //
-// Depende de:
-//   - McpWidgetRegistry: para obtener BuildContext y RenderBox del widget
-//   - McpGestureSimulator: para generar eventos de puntero físicos
+// Depends on:
+//   - McpWidgetRegistry: to obtain BuildContext and RenderBox of the widget
+//   - McpGestureSimulator: to generate physical pointer events
 //
-// Flujo general por evento:
-//   1. obtener context/renderBox del registry
-//   2. caminar el widget tree si es necesario (visitChildElements)
-//   3. ejecutar la acción (gesture, callback, assertion)
-//   4. esperar rebuild si aplica (Future.delayed)
-//   5. retornar bool
+// General flow per event:
+//   1. get context/renderBox from the registry
+//   2. walk the widget tree if necessary (visitChildElements)
+//   3. execute the action (gesture, callback, assertion)
+//   4. wait for rebuild if applicable (Future.delayed)
+//   5. return bool
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/gestures.dart';
@@ -32,26 +32,26 @@ import 'mcp_gesture_simulator.dart';
 
 // ── Executor ──────────────────────────────────────────────────────────────────
 
-/// Motor de ejecución de los 25 tipos de eventos MCP sobre el widget tree.
+/// Execution engine for the 25 MCP event types on the widget tree.
 ///
-/// Es la única clase que navega el árbol de widgets de Flutter y ejecuta
-/// acciones sobre él. Toda la lógica de "cómo hacer X en Flutter" vive aquí.
+/// This is the only class that navigates the Flutter widget tree and executes
+/// actions on it. All the logic for "how to do X in Flutter" lives here.
 class McpEventExecutor {
   final McpWidgetRegistry _registry;
   final McpGestureSimulator _simulator;
 
   McpEventExecutor(this._registry, this._simulator);
 
-  // ── Despacho principal ────────────────────────────────────────────────────
+  // ── Main dispatch ────────────────────────────────────────────────────
 
-  /// Ejecuta el evento [eventType] sobre el widget identificado por [widgetKey].
+  /// Executes the [eventType] event on the widget identified by [widgetKey].
   ///
-  /// Retorna true si el evento se ejecutó con éxito.
-  /// Retorna false si: el widget no está registrado/montado, faltan parámetros,
-  /// o el widget tree no contiene el elemento esperado.
+  /// Returns true if the event was executed successfully.
+  /// Returns false if: the widget is not registered/mounted, parameters are
+  /// missing, or the widget tree does not contain the expected element.
   ///
-  /// Los eventos de aserción retornan el resultado de la aserción
-  /// (true = aserción cumplida, false = aserción fallida).
+  /// Assertion events return the assertion result
+  /// (true = assertion passed, false = assertion failed).
   Future<bool> executeEvent({
     required String widgetKey,
     required McpEventType eventType,
@@ -59,7 +59,7 @@ class McpEventExecutor {
   }) async {
     Log.i('[Executor] ⚡ $eventType → "$widgetKey"');
     return switch (eventType) {
-      // ── Gestos básicos ──────────────────────────────────────────────────
+      // ── Basic gestures ──────────────────────────────────────────────────
       McpEventType.tap => _tap(widgetKey),
       McpEventType.doubleTap => _doubleTap(widgetKey),
       McpEventType.longPress => _longPress(widgetKey, params),
@@ -67,24 +67,24 @@ class McpEventExecutor {
       McpEventType.drag => _drag(widgetKey, params),
       McpEventType.scroll => _scroll(widgetKey, params),
       McpEventType.pinch => _pinch(widgetKey, params),
-      // ── Texto e input ────────────────────────────────────────────────────
+      // ── Text and input ────────────────────────────────────────────────────
       McpEventType.textInput => _textInput(widgetKey, params),
       McpEventType.clearText => _clearText(widgetKey),
       McpEventType.selectDropdown => _selectDropdown(widgetKey, params),
       McpEventType.toggle => _toggle(widgetKey),
       McpEventType.setSliderValue => _setSliderValue(widgetKey, params),
-      // ── Teclado ─────────────────────────────────────────────────────────
+      // ── Keyboard ─────────────────────────────────────────────────────────
       McpEventType.hideKeyboard => _hideKeyboard(),
       McpEventType.showKeyboard => _showKeyboard(widgetKey),
-      // ── Navegación ───────────────────────────────────────────────────────
+      // ── Navigation ───────────────────────────────────────────────────────
       McpEventType.pressBack => _pressBack(widgetKey),
-      // ── Scroll inteligente ───────────────────────────────────────────────
+      // ── Smart scroll ───────────────────────────────────────────────────
       McpEventType.scrollUntilVisible => _scrollUntilVisible(widgetKey, params),
       McpEventType.tapByLabel => _tapByLabel(params),
       McpEventType.tapAt => _tapAt(params),
-      // ── Utilidades ───────────────────────────────────────────────────────
+      // ── Utilities ───────────────────────────────────────────────────────
       McpEventType.wait => _wait(params),
-      // ── Aserciones ───────────────────────────────────────────────────────
+      // ── Assertions ───────────────────────────────────────────────────────
       McpEventType.assertExists => _assertExists(widgetKey),
       McpEventType.assertText => _assertText(widgetKey, params),
       McpEventType.assertVisible => _assertVisible(widgetKey),
@@ -99,7 +99,7 @@ class McpEventExecutor {
   // GESTOS BÁSICOS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Tap simple en el centro del widget.
+  /// Simple tap at the center of the widget.
   Future<bool> _tap(String key) async {
     final rb = _registry.getRenderBox(key);
     if (rb == null) return _notFound(key);
@@ -107,7 +107,7 @@ class McpEventExecutor {
     return true;
   }
 
-  /// Dos taps separados por 100ms.
+  /// Two taps separated by 100ms.
   Future<bool> _doubleTap(String key) async {
     final rb = _registry.getRenderBox(key);
     if (rb == null) return _notFound(key);
@@ -118,7 +118,7 @@ class McpEventExecutor {
     return true;
   }
 
-  /// Tap sostenido durante [params.duration] (default 500ms).
+  /// Sustained tap for [params.duration] (default 500ms).
   Future<bool> _longPress(String key, McpEventParams? params) async {
     final rb = _registry.getRenderBox(key);
     if (rb == null) return _notFound(key);
@@ -136,10 +136,10 @@ class McpEventExecutor {
     return true;
   }
 
-  /// Deslizamiento en dirección [params.direction] (up/down/left/right).
+  /// Swipe in the [params.direction] direction (up/down/left/right).
   ///
-  /// [params.distance] controla cuántos píxeles se desplaza (default 300).
-  /// [params.duration] controla la velocidad (default 300ms).
+  /// [params.distance] controls how many pixels to swipe (default 300).
+  /// [params.duration] controls the speed (default 300ms).
   Future<bool> _swipe(String key, McpEventParams? params) async {
     final rb = _registry.getRenderBox(key);
     if (rb == null) return _notFound(key);
@@ -161,8 +161,8 @@ class McpEventExecutor {
     return true;
   }
 
-  /// Drag desde el widget hasta una posición absoluta [params.targetPosition]
-  /// o un offset relativo usando [params.deltaX] / [params.deltaY].
+  /// Drag from the widget to an absolute position [params.targetPosition]
+  /// or a relative offset using [params.deltaX] / [params.deltaY].
   Future<bool> _drag(String key, McpEventParams? params) async {
     final rb = _registry.getRenderBox(key);
     if (rb == null) return _notFound(key);
@@ -175,7 +175,7 @@ class McpEventExecutor {
     } else if (params?.deltaX != null || params?.deltaY != null) {
       target = center + Offset(params?.deltaX ?? 0, params?.deltaY ?? 0);
     } else {
-      Log.i('[Executor] ❌ drag requiere targetPosition o deltaX/deltaY');
+      Log.i('[Executor] ❌ drag requires targetPosition or deltaX/deltaY');
       return false;
     }
 
@@ -186,13 +186,13 @@ class McpEventExecutor {
 
   /// Scroll via PointerScrollEvent (mouse/trackpad).
   ///
-  /// Para scroll táctil en dispositivos móviles, usa [_swipe].
-  /// [params.direction] acepta 'up'/'down' (además de deltaX/deltaY directo).
+  /// For touch scrolling on mobile devices, use [_swipe].
+  /// [params.direction] accepts 'up'/'down' (in addition to direct deltaX/deltaY).
   Future<bool> _scroll(String key, McpEventParams? params) async {
     final rb = _registry.getRenderBox(key);
     if (rb == null) return _notFound(key);
 
-    // Permite especificar dirección semántica además de deltas numéricos
+    // Allows specifying semantic direction in addition to numeric deltas
     final direction = params?.direction;
     final deltaY = direction == 'down'
         ? 200.0
@@ -213,12 +213,12 @@ class McpEventExecutor {
     return true;
   }
 
-  /// Pinch/zoom — pendiente de implementación.
+  /// Pinch/zoom — pending implementation.
   ///
-  /// Requiere simular dos pointers simultáneos, que GestureBinding admite
-  /// pero necesita coordinación de IDs de pointer distintos.
+  /// Requires simulating two simultaneous pointers, which GestureBinding supports
+  /// but needs coordination of different pointer IDs.
   Future<bool> _pinch(String key, McpEventParams? params) async {
-    Log.i('[Executor] ⚠️  Pinch no implementado aún (requiere dual-pointer)');
+    Log.i('[Executor] ⚠️  Pinch not yet implemented (requires dual-pointer)');
     return false;
   }
 
@@ -226,19 +226,19 @@ class McpEventExecutor {
   // TEXTO E INPUT
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Escribe texto en un TextField/TextFormField.
+  /// Types text into a TextField/TextFormField.
   ///
-  /// Flujo:
-  /// 1. Camina el tree desde el context del widget buscando TextField
-  /// 2. Obtiene el TextEditingController
-  /// 3. Limpia si [params.clearFirst] es true
-  /// 4. Asigna el valor al controller (incluye cursor al final)
-  /// 5. Llama onChanged() manualmente para activar form validators
-  /// 6. Tap en el widget para enfocar (simula que el usuario tocó el campo)
+  /// Flow:
+  /// 1. Walks the tree from the widget's context looking for TextField
+  /// 2. Gets the TextEditingController
+  /// 3. Clears if [params.clearFirst] is true
+  /// 4. Assigns the value to the controller (including cursor at the end)
+  /// 5. Calls onChanged() manually to trigger form validators
+  /// 6. Taps the widget to focus (simulates the user touching the field)
   Future<bool> _textInput(String key, McpEventParams? params) async {
     final context = _registry.getContext(key);
     if (context == null || params?.text == null) {
-      Log.i('[Executor] ❌ textInput: context o texto no disponible en "$key"');
+      Log.i('[Executor] ❌ textInput: context or text not available for "$key"');
       return false;
     }
 
@@ -258,7 +258,7 @@ class McpEventExecutor {
     context.visitChildElements(findController);
 
     if (controller == null) {
-      Log.i('[Executor] ❌ No se encontró TextEditingController en "$key"');
+      Log.i('[Executor] ❌ TextEditingController not found in "$key"');
       return false;
     }
 
@@ -269,7 +269,7 @@ class McpEventExecutor {
       selection: TextSelection.collapsed(offset: params.text!.length),
     );
 
-    // Notificar a form validators
+    // Notify form validators
     void callOnChanged(Element el) {
       switch (el.widget) {
         case TextField w when w.onChanged != null:
@@ -285,18 +285,18 @@ class McpEventExecutor {
 
     context.visitChildElements(callOnChanged);
 
-    // Tap para enfocar
+    // Tap to focus
     final rb = _registry.getRenderBox(key);
     if (rb != null) _simulator.simulateTap(_simulator.centerOf(rb));
 
     await Future.delayed(const Duration(milliseconds: 150));
-    Log.i('[Executor] ✅ Texto insertado: "${controller!.text}"');
+    Log.i('[Executor] ✅ Text inserted: "${controller!.text}"');
     return true;
   }
 
-  /// Limpia el contenido de un TextField sin escribir texto nuevo.
+  /// Clears the contents of a TextField without typing new text.
   ///
-  /// Útil para resetear campos antes de una aserción o antes de escribir.
+  /// Useful for resetting fields before an assertion or before typing.
   Future<bool> _clearText(String key) async {
     final context = _registry.getContext(key);
     if (context == null) return _notFound(key);
@@ -334,23 +334,23 @@ class McpEventExecutor {
     context.visitChildElements(notifyEmpty);
 
     await Future.delayed(const Duration(milliseconds: 100));
-    Log.i('[Executor] ✅ Campo limpiado: "$key"');
+    Log.i('[Executor] ✅ Field cleared: "$key"');
     return true;
   }
 
-  /// Selecciona una opción de un DropdownButtonFormField.
+  /// Selects an option from a DropdownButtonFormField.
   ///
-  /// No abre el dropdown visualmente — llama onChanged() directamente.
-  /// Para dropdowns custom (BottomSheet, overlay), usa tap + tapByLabel.
+  /// Does not open the dropdown visually — calls onChanged() directly.
+  /// For custom dropdowns (BottomSheet, overlay), use tap + tapByLabel.
   ///
-  /// Selección por valor: busca coincidencia exacta → contains → sufijo enum
-  /// Selección por índice: 0-based, accede directo al item
+  /// Selection by value: searches for exact match → contains → enum suffix
+  /// Selection by index: 0-based, accesses the item directly
   Future<bool> _selectDropdown(String key, McpEventParams? params) async {
     final context = _registry.getContext(key);
     if (context == null) return _notFound(key);
     if (params?.dropdownValue == null && params?.dropdownIndex == null) {
       Log.i(
-        '[Executor] ❌ selectDropdown requiere dropdownValue o dropdownIndex',
+        '[Executor] ❌ selectDropdown requires dropdownValue or dropdownIndex',
       );
       return false;
     }
@@ -374,18 +374,18 @@ class McpEventExecutor {
     context.visitChildElements(findDropdown);
 
     if (dropdown == null || onChanged == null || items == null) {
-      Log.i('[Executor] ❌ DropdownButtonFormField no encontrado en "$key"');
+      Log.i('[Executor] ❌ DropdownButtonFormField not found in "$key"');
       return false;
     }
 
     Log.i('[Executor] 📋 Dropdown con ${items!.length} items');
 
-    // Selección por índice
+    // Selection by index
     if (params!.dropdownIndex != null) {
       final idx = params.dropdownIndex!;
       if (idx < 0 || idx >= items!.length) {
         Log.i(
-          '[Executor] ❌ Índice $idx fuera de rango (0..${items!.length - 1})',
+          '[Executor] ❌ Index $idx out of range (0..${items!.length - 1})',
         );
         return false;
       }
@@ -394,28 +394,28 @@ class McpEventExecutor {
       return true;
     }
 
-    // Selección por valor (coincidencia flexible)
+    // Selection by value (flexible matching)
     final search = params.dropdownValue!.toLowerCase();
     for (final item in items!) {
       final val = item.value.toString().toLowerCase();
       if (val == search ||
           val.contains(search) ||
           val.split('.').last == search) {
-        Log.i('[Executor] ✅ Seleccionando: ${item.value}');
+        Log.i('[Executor] ✅ Selecting: ${item.value}');
         onChanged!(item.value);
         await Future.delayed(const Duration(milliseconds: 300));
         return true;
       }
     }
 
-    Log.i('[Executor] ❌ No se encontró valor que coincida con "$search"');
+    Log.i('[Executor] ❌ No matching value found for "$search"');
     return false;
   }
 
-  /// Activa/desactiva un Checkbox, Switch o Radio.
+  /// Toggles a Checkbox, Switch, or Radio.
   ///
-  /// Para Checkbox/Switch: invierte el valor actual llamando onChanged(!current).
-  /// Para Radio: lo selecciona (llama onChanged con su value).
+  /// For Checkbox/Switch: inverts the current value by calling onChanged(!current).
+  /// For Radio: selects it (calls onChanged with its value).
   Future<bool> _toggle(String key) async {
     final context = _registry.getContext(key);
     if (context == null) return _notFound(key);
@@ -441,17 +441,17 @@ class McpEventExecutor {
     context.visitChildElements(findToggle);
 
     if (!toggled) {
-      Log.i('[Executor] ❌ No se encontró Checkbox/Switch/Radio en "$key"');
+      Log.i('[Executor] ❌ Checkbox/Switch/Radio not found in "$key"');
       return false;
     }
     await Future.delayed(const Duration(milliseconds: 200));
     return true;
   }
 
-  /// Posiciona un Slider al valor [params.sliderValue] (0.0 – 1.0).
+  /// Positions a Slider to the [params.sliderValue] value (0.0 – 1.0).
   ///
-  /// Calcula la posición X dentro del track del Slider y simula un tap ahí.
-  /// 0.0 = extremo izquierdo, 1.0 = extremo derecho.
+  /// Calculates the X position within the Slider track and simulates a tap there.
+  /// 0.0 = left end, 1.0 = right end.
   Future<bool> _setSliderValue(String key, McpEventParams? params) async {
     final rb = _registry.getRenderBox(key);
     if (rb == null) return _notFound(key);
@@ -473,14 +473,14 @@ class McpEventExecutor {
   // TECLADO Y NAVEGACIÓN
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Oculta el teclado virtual via el canal de plataforma TextInput.
+  /// Hides the virtual keyboard via the TextInput platform channel.
   Future<bool> _hideKeyboard() async {
     Log.i('[Executor] ⌨️↓ HideKeyboard');
     SystemChannels.textInput.invokeMethod('TextInput.hide');
     return true;
   }
 
-  /// Muestra el teclado solicitando foco al scope del widget.
+  /// Shows the keyboard by requesting focus on the widget's scope.
   Future<bool> _showKeyboard(String key) async {
     final context = _registry.getContext(key);
     if (context == null) return _notFound(key);
@@ -489,11 +489,11 @@ class McpEventExecutor {
     return true;
   }
 
-  /// Navega atrás usando Navigator.pop().
+  /// Navigates back using Navigator.pop().
   ///
-  /// Intenta pop desde el Navigator más cercano al widget [key].
-  /// Si no hay Navigator disponible o no puede popear, usa SystemNavigator.pop()
-  /// (equivale al botón físico Back en Android).
+  /// Attempts to pop from the nearest Navigator to the widget [key].
+  /// If no Navigator is available or it cannot pop, uses SystemNavigator.pop()
+  /// (equivalent to the physical Back button on Android).
   Future<bool> _pressBack(String key) async {
     Log.i('[Executor] ◀️  PressBack');
     final context = _registry.getContext(key);
@@ -512,19 +512,19 @@ class McpEventExecutor {
   // SCROLL INTELIGENTE Y LABEL TAP
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Scrollea el widget [key] hasta que el widget [params.targetKey] sea visible.
+  /// Scrolls the widget [key] until the widget [params.targetKey] is visible.
   ///
-  /// Algoritmo:
-  /// 1. Verifica si targetKey ya está en viewport
-  /// 2. Si no, emite PointerScrollEvent de 200px hacia abajo
-  /// 3. Espera 150ms para que el layout se actualice
-  /// 4. Repite hasta [params.maxScrollAttempts] veces (default 20)
+  /// Algorithm:
+  /// 1. Checks if targetKey is already in the viewport
+  /// 2. If not, emits a 200px PointerScrollEvent downward
+  /// 3. Waits 150ms for the layout to update
+  /// 4. Repeats up to [params.maxScrollAttempts] times (default 20)
   ///
-  /// Retorna true si el target quedó visible, false si se agotaron los intentos.
+  /// Returns true if the target became visible, false if attempts were exhausted.
   Future<bool> _scrollUntilVisible(String key, McpEventParams? params) async {
     final targetKey = params?.targetKey;
     if (targetKey == null) {
-      Log.i('[Executor] ❌ scrollUntilVisible requiere params.targetKey');
+      Log.i('[Executor] ❌ scrollUntilVisible requires params.targetKey');
       return false;
     }
     final scrollRb = _registry.getRenderBox(key);
@@ -555,19 +555,19 @@ class McpEventExecutor {
       await Future.delayed(const Duration(milliseconds: 150));
     }
 
-    Log.i('[Executor] ❌ "$targetKey" no visible tras $maxAttempts intentos');
+    Log.i('[Executor] ❌ "$targetKey" not visible after $maxAttempts attempts');
     return false;
   }
 
-  /// Tapea el widget cuyo texto interno coincide con [params.label].
+  /// Taps the widget whose internal text matches [params.label].
   ///
-  /// Útil cuando el widget no tiene un ID registrado pero tiene un Text() visible.
-  /// Busca en todos los widgets registrados un Text() hijo que contenga el label.
-  /// Coincidencia case-insensitive; acepta match parcial (contains).
+  /// Useful when the widget does not have a registered ID but has a visible Text().
+  /// Searches all registered widgets for a child Text() that contains the label.
+  /// Case-insensitive matching; accepts partial match (contains).
   Future<bool> _tapByLabel(McpEventParams? params) async {
     final label = params?.label;
     if (label == null) {
-      Log.i('[Executor] ❌ tapByLabel requiere params.label');
+      Log.i('[Executor] ❌ tapByLabel requires params.label');
       return false;
     }
 
@@ -603,20 +603,20 @@ class McpEventExecutor {
       }
     }
 
-    Log.i('[Executor] ❌ No se encontró widget con label "$label"');
+    Log.i('[Executor] ❌ Widget with label "$label" not found');
     return false;
   }
 
-  /// Tap en coordenadas absolutas de pantalla [params.dx] / [params.dy].
+  /// Tap at absolute screen coordinates [params.dx] / [params.dy].
   ///
-  /// No requiere widget registrado — útil para cards, items de lista dinámica
-  /// o cualquier widget sin ID. Las coordenadas son logical pixels desde la
-  /// esquina superior izquierda de la pantalla (igual que el inspect_ui tree).
+  /// Does not require a registered widget — useful for cards, dynamic list items,
+  /// or any widget without an ID. Coordinates are logical pixels from the
+  /// top-left corner of the screen (same as the inspect_ui tree).
   Future<bool> _tapAt(McpEventParams? params) async {
     final x = params?.dx;
     final y = params?.dy;
     if (x == null || y == null) {
-      Log.i('[Executor] ❌ tapAt requiere params.dx y params.dy');
+      Log.i('[Executor] ❌ tapAt requires params.dx and params.dy');
       return false;
     }
     final position = Offset(x, y);
@@ -630,7 +630,7 @@ class McpEventExecutor {
   // UTILIDADES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Pausa la ejecución durante [params.duration] (default 500ms).
+  /// Pauses execution for [params.duration] (default 500ms).
   Future<bool> _wait(McpEventParams? params) async {
     final duration = params?.duration ?? const Duration(milliseconds: 500);
     Log.i('[Executor] ⏳ Wait ${duration.inMilliseconds}ms');
@@ -642,12 +642,12 @@ class McpEventExecutor {
   // ASERCIONES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Verifica que el widget está registrado en el registry.
+  /// Verifies that the widget is registered in the registry.
   ///
-  /// No verifica si está montado — solo que fue registrado.
-  /// Para verificar si está visible en pantalla, usa [_assertVisible].
+  /// Does not verify if it is mounted — only that it was registered.
+  /// To verify if it is visible on screen, use [_assertVisible].
   Future<bool> _assertExists(String key) async {
-    // isRegistered: fue declarado. getContext != null: está montado en pantalla.
+    // isRegistered: was declared. getContext != null: is mounted on screen.
     final registered = _registry.isRegistered(key);
     final mounted = _registry.getContext(key) != null;
     final exists = registered || mounted;
@@ -655,10 +655,10 @@ class McpEventExecutor {
     return exists;
   }
 
-  /// Verifica que el widget contiene el texto esperado [params.expectedText].
+  /// Verifies that the widget contains the expected text [params.expectedText].
   ///
-  /// Busca el primer widget Text() en el árbol hijo y compara su contenido.
-  /// Para verificar el valor de un TextField (no su label), usa [_assertValue].
+  /// Searches for the first Text() widget in the child tree and compares its content.
+  /// To verify the value of a TextField (not its label), use [_assertValue].
   Future<bool> _assertText(String key, McpEventParams? params) async {
     final context = _registry.getContext(key);
     if (context == null || params?.expectedText == null) return false;
@@ -684,10 +684,10 @@ class McpEventExecutor {
     return matches;
   }
 
-  /// Verifica que el widget es completamente visible en el viewport actual.
+  /// Verifies that the widget is fully visible in the current viewport.
   ///
-  /// "Visible" significa que los cuatro bordes del widget están dentro de los
-  /// límites de la pantalla (no solo que existe o está montado).
+  /// "Visible" means that all four edges of the widget are within the
+  /// screen bounds (not just that it exists or is mounted).
   Future<bool> _assertVisible(String key) async {
     final rb = _registry.getRenderBox(key);
     if (rb == null) return _notFound(key);
@@ -710,12 +710,12 @@ class McpEventExecutor {
     return isVisible;
   }
 
-  /// Verifica que el widget está habilitado (no deshabilitado).
+  /// Verifies that the widget is enabled (not disabled).
   ///
-  /// Detecta deshabilitación en: ElevatedButton, TextButton, OutlinedButton,
+  /// Detects disabled state in: ElevatedButton, TextButton, OutlinedButton,
   /// IconButton (onPressed != null), TextField, TextFormField (.enabled),
   /// Checkbox, Switch, Radio, Slider (.onChanged != null),
-  /// AbsorbPointer, IgnorePointer (absorbing/ignoring = false → habilitado).
+  /// AbsorbPointer, IgnorePointer (absorbing/ignoring = false → enabled).
   Future<bool> _assertEnabled(String key) async {
     final context = _registry.getContext(key);
     if (context == null) return _notFound(key);
@@ -748,10 +748,10 @@ class McpEventExecutor {
     return result;
   }
 
-  /// Verifica que el widget está seleccionado/activado.
+  /// Verifies that the widget is selected/activated.
   ///
-  /// Para Checkbox/Switch: retorna el valor booleano actual.
-  /// Para Radio: retorna true si groupValue == value.
+  /// For Checkbox/Switch: returns the current boolean value.
+  /// For Radio: returns true if groupValue == value.
   Future<bool> _assertSelected(String key) async {
     final context = _registry.getContext(key);
     if (context == null) return _notFound(key);
@@ -771,17 +771,17 @@ class McpEventExecutor {
     context.visitChildElements(findSelected);
 
     if (selected == null) {
-      Log.i('[Executor] ❌ No se encontró Checkbox/Switch/Radio en "$key"');
+      Log.i('[Executor] ❌ Checkbox/Switch/Radio not found in "$key"');
       return false;
     }
     Log.i('[Executor] ✅ AssertSelected "$key" = $selected');
     return selected!;
   }
 
-  /// Verifica el valor del TextEditingController (no el texto visual del label).
+  /// Verifies the TextEditingController value (not the visual label text).
   ///
-  /// Usa [params.expectedText] como valor esperado.
-  /// Compara `controller.text` directo, útil para validar lo que se escribió.
+  /// Uses [params.expectedText] as the expected value.
+  /// Compares `controller.text` directly, useful for validating what was typed.
   Future<bool> _assertValue(String key, McpEventParams? params) async {
     final context = _registry.getContext(key);
     if (context == null || params?.expectedText == null) return false;
@@ -800,7 +800,7 @@ class McpEventExecutor {
     context.visitChildElements(find);
 
     if (controller == null) {
-      Log.i('[Executor] ❌ No se encontró controller en "$key"');
+      Log.i('[Executor] ❌ Controller not found in "$key"');
       return false;
     }
 
@@ -811,9 +811,9 @@ class McpEventExecutor {
     return matches;
   }
 
-  /// Verifica que el widget tiene exactamente [params.expectedCount] hijos visibles.
+  /// Verifies that the widget has exactly [params.expectedCount] visible children.
   ///
-  /// Soporta: Column, Row (cuenta children estático), ListView (cuenta elements montados).
+  /// Supports: Column, Row (counts static children), ListView (counts mounted elements).
   Future<bool> _assertCount(String key, McpEventParams? params) async {
     final context = _registry.getContext(key);
     if (context == null || params?.expectedCount == null) return false;
@@ -833,7 +833,7 @@ class McpEventExecutor {
     context.visitChildElements(findCount);
 
     if (count == null) {
-      Log.i('[Executor] ❌ No se pudo contar hijos en "$key"');
+      Log.i('[Executor] ❌ Could not count children in "$key"');
       return false;
     }
 
@@ -848,16 +848,16 @@ class McpEventExecutor {
   // HELPERS INTERNOS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Cuenta los hijos directos de un Element de ListView.
+  /// Counts the direct children of a ListView Element.
   int _countChildren(Element el) {
     int count = 0;
     el.visitChildElements((_) => count++);
     return count;
   }
 
-  /// Log de widget no encontrado. Siempre retorna false.
+  /// Logs widget not found. Always returns false.
   bool _notFound(String key) {
-    Log.i('[Executor] ❌ Widget no encontrado o no montado: "$key"');
+    Log.i('[Executor] ❌ Widget not found or not mounted: "$key"');
     return false;
   }
 }
