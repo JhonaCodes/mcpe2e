@@ -201,9 +201,12 @@ class McpEventServer {
   /// }
   /// ```
   static void _handleMcpContext(HttpRequest req) {
-    _sendJson(req, McpEvents.instance.toJson(
-      route: McpNavigatorObserver.instance.currentRoute,
-    ));
+    _sendJson(
+      req,
+      McpEvents.instance.toJson(
+        route: McpNavigatorObserver.instance.currentRoute,
+      ),
+    );
   }
 
   /// GET /mcp/tree — Widget tree with data from the current screen.

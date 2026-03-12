@@ -36,7 +36,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ignore_for_file: deprecated_member_use
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../events/mcp_metadata_key.dart';
@@ -134,8 +133,11 @@ class McpTreeInspector {
 
   /// Detects if a widget is the root of a modal/overlay layer.
   static bool _isOverlayContainer(Widget w) {
-    if (w is AlertDialog || w is Dialog || w is SimpleDialog ||
-        w is BottomSheet || w is SnackBar) {
+    if (w is AlertDialog ||
+        w is Dialog ||
+        w is SimpleDialog ||
+        w is BottomSheet ||
+        w is SnackBar) {
       return true;
     }
     // Private Flutter types — detect by runtime name
@@ -167,8 +169,14 @@ class McpTreeInspector {
     if (widget is Text) {
       final value = widget.data ?? widget.textSpan?.toPlainText();
       if (value == null || value.isEmpty) return null;
-      return _entry('Text', depth, pos, mcpKey,
-          extra: {'value': value}, inOverlay: inOverlay);
+      return _entry(
+        'Text',
+        depth,
+        pos,
+        mcpKey,
+        extra: {'value': value},
+        inOverlay: inOverlay,
+      );
     }
 
     // RichText: only if not a direct child of a Text (avoids duplicates).
@@ -311,7 +319,11 @@ class McpTreeInspector {
       // (which erases T to dynamic) can throw a TypeError due to function
       // contravariance. Wrap in try-catch.
       bool enabled;
-      try { enabled = widget.onChanged != null; } catch (_) { enabled = true; }
+      try {
+        enabled = widget.onChanged != null;
+      } catch (_) {
+        enabled = true;
+      }
       return _entry(
         'Radio',
         depth,
@@ -362,10 +374,7 @@ class McpTreeInspector {
         depth,
         pos,
         mcpKey,
-        extra: {
-          'tooltip': ?tooltip,
-          'enabled': enabled,
-        },
+        extra: {'tooltip': ?tooltip, 'enabled': enabled},
         inOverlay: inOverlay,
       );
     }
@@ -373,7 +382,9 @@ class McpTreeInspector {
     // ── Dropdown ───────────────────────────────────────────────────────────
     if (widget is DropdownButtonFormField) {
       String? value;
-      try { value = widget.initialValue?.toString(); } catch (_) {}
+      try {
+        value = widget.initialValue?.toString();
+      } catch (_) {}
       return _entry(
         'DropdownButtonFormField',
         depth,
@@ -403,8 +414,14 @@ class McpTreeInspector {
       final titleText = widget.title is Text
           ? (widget.title as Text).data
           : _findTextInSubtree(element);
-      return _entry('AppBar', depth, pos, mcpKey,
-          extra: {'title': ?titleText}, inOverlay: inOverlay);
+      return _entry(
+        'AppBar',
+        depth,
+        pos,
+        mcpKey,
+        extra: {'title': ?titleText},
+        inOverlay: inOverlay,
+      );
     }
 
     // ── Dialogs / overlays ────────────────────────────────────────────────
@@ -418,7 +435,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'title': ?titleText, 'visible': true},
-        inOverlay: true,  // AlertDialog is always an overlay
+        inOverlay: true, // AlertDialog is always an overlay
       );
     }
 
@@ -429,7 +446,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'visible': true},
-        inOverlay: true,  // BottomSheet is always an overlay
+        inOverlay: true, // BottomSheet is always an overlay
       );
     }
 
@@ -443,7 +460,7 @@ class McpTreeInspector {
         pos,
         mcpKey,
         extra: {'content': ?content, 'visible': true},
-        inOverlay: true,  // SnackBar is always an overlay
+        inOverlay: true, // SnackBar is always an overlay
       );
     }
 

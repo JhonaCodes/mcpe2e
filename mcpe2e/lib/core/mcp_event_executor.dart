@@ -384,9 +384,7 @@ class McpEventExecutor {
     if (params!.dropdownIndex != null) {
       final idx = params.dropdownIndex!;
       if (idx < 0 || idx >= items!.length) {
-        Log.i(
-          '[Executor] ❌ Index $idx out of range (0..${items!.length - 1})',
-        );
+        Log.i('[Executor] ❌ Index $idx out of range (0..${items!.length - 1})');
         return false;
       }
       onChanged!(items![idx].value);
@@ -620,7 +618,9 @@ class McpEventExecutor {
       return false;
     }
     final position = Offset(x, y);
-    Log.i('[Executor] 👆 TapAt (${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})');
+    Log.i(
+      '[Executor] 👆 TapAt (${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})',
+    );
     _simulator.simulateTap(position);
     await Future.delayed(const Duration(milliseconds: 150));
     return true;
@@ -651,7 +651,9 @@ class McpEventExecutor {
     final registered = _registry.isRegistered(key);
     final mounted = _registry.getContext(key) != null;
     final exists = registered || mounted;
-    Log.i('[Executor] ✅ AssertExists "$key" = $exists (registered=$registered, mounted=$mounted)');
+    Log.i(
+      '[Executor] ✅ AssertExists "$key" = $exists (registered=$registered, mounted=$mounted)',
+    );
     return exists;
   }
 

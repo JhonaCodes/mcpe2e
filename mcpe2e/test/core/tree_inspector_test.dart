@@ -9,10 +9,7 @@ import 'package:mcpe2e/core/mcp_tree_inspector.dart';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /// Retorna la primera entrada del árbol inspeccionado que coincida con [type].
-Map<String, dynamic>? _findByType(
-  Map<String, dynamic> result,
-  String type,
-) {
+Map<String, dynamic>? _findByType(Map<String, dynamic> result, String type) {
   final widgets = result['widgets'] as List;
   for (final w in widgets) {
     if ((w as Map<String, dynamic>)['type'] == type) return w;
@@ -140,14 +137,17 @@ void main() {
       expect(inner['b'], isNull);
     });
 
-    test('B12: List de Maps — Infinity dentro de un Map se convierte a null', () {
-      final input = [
-        {'v': double.infinity},
-      ];
-      final result = McpTreeInspector.sanitizeValue(input) as List;
-      final first = result[0] as Map;
-      expect(first['v'], isNull);
-    });
+    test(
+      'B12: List de Maps — Infinity dentro de un Map se convierte a null',
+      () {
+        final input = [
+          {'v': double.infinity},
+        ];
+        final result = McpTreeInspector.sanitizeValue(input) as List;
+        final first = result[0] as Map;
+        expect(first['v'], isNull);
+      },
+    );
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -183,8 +183,9 @@ void main() {
       expect(result.containsKey('widgets'), isTrue);
     });
 
-    testWidgets('C3: widget_count coincide con la longitud de widgets',
-        (tester) async {
+    testWidgets('C3: widget_count coincide con la longitud de widgets', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const Text('Hello')));
       final result = McpTreeInspector.inspect();
       final widgets = result['widgets'] as List;
@@ -203,12 +204,15 @@ void main() {
       await tester.pumpWidget(_wrap(const Text('')));
       final result = McpTreeInspector.inspect();
       final texts = _allByType(result, 'Text');
-      final hasEmpty = texts.any((t) => (t['value'] as String?)?.isEmpty == true);
+      final hasEmpty = texts.any(
+        (t) => (t['value'] as String?)?.isEmpty == true,
+      );
       expect(hasEmpty, isFalse);
     });
 
-    testWidgets('C6: ElevatedButton con onPressed=null → enabled=false',
-        (tester) async {
+    testWidgets('C6: ElevatedButton con onPressed=null → enabled=false', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(ElevatedButton(onPressed: null, child: const Text('Tap'))),
       );
@@ -218,8 +222,9 @@ void main() {
       expect(entry!['enabled'], isFalse);
     });
 
-    testWidgets('C7: ElevatedButton con onPressed → enabled=true',
-        (tester) async {
+    testWidgets('C7: ElevatedButton con onPressed → enabled=true', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(ElevatedButton(onPressed: () {}, child: const Text('Tap'))),
       );
@@ -229,14 +234,11 @@ void main() {
       expect(entry!['enabled'], isTrue);
     });
 
-    testWidgets('C8: TextField con hintText aparece con hint correcto',
-        (tester) async {
+    testWidgets('C8: TextField con hintText aparece con hint correcto', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        _wrap(
-          const TextField(
-            decoration: InputDecoration(hintText: 'Email'),
-          ),
-        ),
+        _wrap(const TextField(decoration: InputDecoration(hintText: 'Email'))),
       );
       final result = McpTreeInspector.inspect();
       final entry = _findByType(result, 'TextField');
@@ -244,8 +246,9 @@ void main() {
       expect(entry!['hint'], equals('Email'));
     });
 
-    testWidgets('C9: AppBar con title extrae el texto del título',
-        (tester) async {
+    testWidgets('C9: AppBar con title extrae el texto del título', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -261,9 +264,7 @@ void main() {
     });
 
     testWidgets('C10: Checkbox marcado aparece con value=true', (tester) async {
-      await tester.pumpWidget(
-        _wrap(Checkbox(value: true, onChanged: (_) {})),
-      );
+      await tester.pumpWidget(_wrap(Checkbox(value: true, onChanged: (_) {})));
       final result = McpTreeInspector.inspect();
       final entry = _findByType(result, 'Checkbox');
       expect(entry, isNotNull);
@@ -271,9 +272,7 @@ void main() {
     });
 
     testWidgets('C11: Switch apagado aparece con value=false', (tester) async {
-      await tester.pumpWidget(
-        _wrap(Switch(value: false, onChanged: (_) {})),
-      );
+      await tester.pumpWidget(_wrap(Switch(value: false, onChanged: (_) {})));
       final result = McpTreeInspector.inspect();
       final entry = _findByType(result, 'Switch');
       expect(entry, isNotNull);
@@ -291,15 +290,15 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
 
   group('Regresión JSON / NaN', () {
-    testWidgets('D1: jsonEncode(inspect()) no lanza con tree simple',
-        (tester) async {
+    testWidgets('D1: jsonEncode(inspect()) no lanza con tree simple', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const Text('ok')));
       final result = McpTreeInspector.inspect();
       expect(() => jsonEncode(result), returnsNormally);
     });
 
-    testWidgets(
-        'D2: jsonEncode(inspect()) no lanza con tree complejo '
+    testWidgets('D2: jsonEncode(inspect()) no lanza con tree complejo '
         '(AppBar + TextField + Button + Text)', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -310,10 +309,7 @@ void main() {
                 const TextField(
                   decoration: InputDecoration(hintText: 'Language'),
                 ),
-                ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('Save'),
-                ),
+                ElevatedButton(onPressed: () {}, child: const Text('Save')),
                 const Text('Current: EN'),
                 Checkbox(value: true, onChanged: (_) {}),
                 Switch(value: false, onChanged: (_) {}),

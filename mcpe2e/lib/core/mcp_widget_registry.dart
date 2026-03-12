@@ -92,7 +92,7 @@ class McpWidgetRegistry {
   /// Triple strategy:
   /// 1. Internal GlobalKey (original flow with getGlobalKey)
   /// 2. Element-tree walk searching for McpMetadataKey with that id (direct flow)
-  /// 3. Element-tree walk searching for ValueKey<String> with matching value
+  /// 3. Element-tree walk searching for ``ValueKey<String>`` with matching value
   BuildContext? getContext(String id) {
     // Strategy 1: Internal GlobalKey
     final ctx = _widgets[id]?.globalKey.currentContext;
@@ -113,6 +113,7 @@ class McpWidgetRegistry {
       }
       el.visitChildElements(visit);
     }
+
     WidgetsBinding.instance.rootElement?.visitChildElements(visit);
     return found;
   }
@@ -137,7 +138,8 @@ class McpWidgetRegistry {
     void visitElement(Element el) {
       if (found != null) return;
       final key = el.widget.key;
-      final matches = (key is McpMetadataKey && key.id == id) ||
+      final matches =
+          (key is McpMetadataKey && key.id == id) ||
           (key is ValueKey<String> && key.value == id);
       if (matches) {
         found = _firstRenderBox(el);
