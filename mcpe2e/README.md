@@ -1,6 +1,6 @@
 # mcpe2e — Flutter Library
 
-[![version](https://img.shields.io/badge/version-1.1.6-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v1.1.6)
+[![version](https://img.shields.io/badge/version-2.1.2-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v2.1.2)
 
 mcpe2e is a Flutter library that embeds a lightweight HTTP server inside your app. When an AI agent (Claude, Codex, Gemini) calls an MCP tool, `mcpe2e_server` translates it to an HTTP request that reaches this server, which then executes the corresponding gesture or assertion on the live widget tree.
 
@@ -26,11 +26,7 @@ Add as a `dev_dependency`:
 ```yaml
 # pubspec.yaml
 dev_dependencies:
-  mcpe2e:
-    git:
-      url: https://github.com/JhonaCodes/mcpe2e.git
-      path: mcpe2e
-      ref: v1.1.6
+  mcpe2e: ^2.1.2
 ```
 
 ```bash
@@ -105,22 +101,62 @@ Returns `{"error":"not_available_in_release"}` in release builds.
 
 ---
 
-## Zero-config Testing (Primary Approach)
+## Widget Resolution — Three Strategies
 
-The recommended workflow does not require widget registration:
+The agent resolves widgets in priority order:
+
+### 1. McpMetadataKey (recommended default)
+
+Register keys on your widgets for stable, named access. Enables all key-based tools (`tap_widget`, `assert_text`, `assert_enabled`, etc.).
+
+```dart
+ElevatedButton(
+  key: const McpMetadataKey(id: 'auth.login_button', widgetType: McpWidgetType.button),
+  onPressed: _login,
+  child: const Text('Log in'),
+)
+```
 
 ```
-inspect_ui   →  receives full widget tree with x, y, w, h for every element
-tap_at x: 195 y: 420   →  taps at those coordinates
+tap_widget      key: auth.login_button
+assert_enabled  key: auth.login_button
 ```
 
-This works for any widget, including dynamic list items, generated cards, and widgets without keys.
+### 2. Existing Flutter keys (automatic)
+
+If your app already uses `ValueKey<String>`, the agent picks them up from `inspect_ui` — no changes needed.
+
+```json
+{ "type": "ElevatedButton", "key": "login_btn", "label": "Login", "x": 20, "y": 400 }
+```
+
+### 3. Coordinates (fallback)
+
+When no key is available, the agent uses screen coordinates from `inspect_ui`:
+
+```json
+{ "type": "ElevatedButton", "label": "Login", "x": 20, "y": 400, "w": 350, "h": 52 }
+```
+
+```
+tap_at      x: 195  y: 426       ← center: 20+350/2, 400+52/2
+input_text  x: 16   y: 220  text: "user@example.com"
+```
+
+This works for any widget — buttons, cards, list items, third-party widgets — without keys, but is less stable across layout changes.
 
 ---
 
-## Optional: Named Widget Keys
+## McpMetadataKey — Named Widget Keys
 
-For scenarios where you want stable named access to specific widgets, use `McpMetadataKey`. It extends Flutter's `Key` and requires both `id` and `widgetType`.
+`McpMetadataKey` is the **recommended** way to identify widgets for testing. It provides:
+
+- **Stable named access** — survives layout changes and screen rebuilds
+- **Assertions** — `assert_text`, `assert_enabled`, `assert_selected` require a key
+- **Overlay reliability** — dialogs, sheets, drawers shift during animation; keys bypass that
+- **Faster lookup** — direct access instead of tree walk
+
+`McpMetadataKey` extends Flutter's `Key` and requires both `id` and `widgetType`. Coordinates (`tap_at`, `input_text(x, y)`) are the fallback for widgets that have no key.
 
 There are two ways to use it:
 

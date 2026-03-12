@@ -203,7 +203,8 @@ final List<Map<String, dynamic>> toolDefinitions = [
         'Use it to discover which keys are active BEFORE running key-based tools. '
         'To see ALL widgets with x/y coordinates, use inspect_ui. '
         'Recommended flow: get_app_context (discover available keys) → '
-        'inspect_ui (coordinates for any widget) → actions.',
+        'inspect_ui (coordinates for any widget) → actions. '
+        'TIP: Request the "mcpe2e_expert" prompt for the complete agent protocol.',
     'inputSchema': {'type': 'object', 'properties': {}, 'required': []},
   },
   {
@@ -282,10 +283,10 @@ final List<Map<String, dynamic>> toolDefinitions = [
     'name': 'tap_at',
     'description':
         'Tap at absolute screen coordinates (logical pixels). '
-        'Useful for widgets without a registered ID: dynamic cards, list items, etc. '
-        'Get coordinates from inspect_ui (x, y fields of the node) or capture_screenshot. '
-        'Coordinates correspond to the top-left corner of the widget; '
-        'to tap the center, add width/2 and height/2.',
+        'FALLBACK — prefer tap_widget(key) when the widget has a key. '
+        'Use tap_at for widgets without a key: dynamic cards, list items, third-party widgets. '
+        'Get coordinates from inspect_ui (x, y, w, h fields). '
+        'Coordinates are top-left corner; to tap center: x + w/2, y + h/2.',
     'inputSchema': {
       'type': 'object',
       'properties': {
@@ -315,18 +316,20 @@ final List<Map<String, dynamic>> toolDefinitions = [
   {
     'name': 'input_text',
     'description':
-        'Types text into a TextField or TextFormField. You have TWO options:\n\n'
-        'OPTION 1 — input_text with coordinates (normal flow):\n'
+        'Types text into a TextField or TextFormField. Three options in priority order:\n\n'
+        'OPTION 1 — input_text with key (recommended):\n'
+        '  input_text(key, text) — use when the field has a "key" in inspect_ui.\n'
+        '  Fastest and most stable. Works with McpMetadataKey or ValueKey.\n\n'
+        'OPTION 2 — input_text with coordinates (fallback):\n'
         '  inspect_ui → get x/y of the field → input_text(x, y, text)\n'
         '  Taps at (x,y) to focus the field, then types via ADB.\n'
         '  If the field already has focus (auto_focus: true in inspect_ui), use skip_focus_tap: true\n'
         '  to avoid dismissing the keyboard with the tap.\n\n'
-        'OPTION 2 — run_command with ADB (fallback for dialogs and overlays):\n'
+        'OPTION 3 — run_command with ADB (last resort for dialogs/overlays):\n'
         '  When input_text fails in a dialog or the tap does not reach the correct field,\n'
         '  use run_command with: adb shell input text "your_text"\n'
         '  Requires the field to already be focused (tap it first with tap_at).\n'
-        '  Useful for: auth codes, PIN fields, AlertDialog/BottomSheet inputs.\n\n'
-        'Key mode (alternative): only if the widget has a "key" field in inspect_ui.',
+        '  Useful for: auth codes, PIN fields, AlertDialog/BottomSheet inputs.',
     'inputSchema': {
       'type': 'object',
       'properties': {
@@ -376,9 +379,9 @@ final List<Map<String, dynamic>> toolDefinitions = [
     'name': 'toggle_widget',
     'description':
         'Toggles a Checkbox, Switch, or Radio button on or off. '
-        'Coordinate mode (PREFERRED for dialogs/overlays): provide x/y '
-        'of the control (from inspect_ui) — simulates a real tap that triggers widget gestures. '
-        'Key mode: only if it has a "key" field in inspect_ui. '
+        'Key mode (recommended): provide key from inspect_ui. '
+        'Coordinate mode (fallback for dialogs/overlays): provide x/y '
+        'from inspect_ui — simulates a real tap. '
         'If x/y are present, coordinates are used even if key is also provided.',
     'inputSchema': {
       'type': 'object',

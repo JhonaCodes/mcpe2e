@@ -42,15 +42,55 @@ Two independent components:
 
 ---
 
-## Zero-config approach
+## How it works — three ways to find widgets
 
-The primary testing workflow requires no widget registration:
+The agent resolves widgets in this priority order:
 
-1. Call `inspect_ui` — returns the full widget tree with coordinates (`x`, `y`, `w`, `h`) for every element.
-2. Calculate center: `cx = x + w/2`, `cy = y + h/2`.
-3. Call `tap_at x: <cx> y: <cy>` — taps at those coordinates.
+### 1. McpMetadataKey (recommended)
 
-No `McpMetadataKey`, no widget registry, no wrappers needed.
+Register keys on your widgets for the most reliable, stable access. This is the **default and recommended approach** — it gives the agent named access to widgets, enables assertions, and survives layout changes.
+
+```dart
+ElevatedButton(
+  key: const McpMetadataKey(id: 'auth.login_button', widgetType: McpWidgetType.button),
+  onPressed: _login,
+  child: const Text('Log in'),
+)
+```
+
+```
+AI calls: tap_widget  key: auth.login_button
+AI calls: assert_enabled  key: auth.login_button
+```
+
+### 2. Existing Flutter keys (automatic)
+
+If your app already uses `ValueKey<String>` or other Flutter keys, the agent picks them up automatically from `inspect_ui` — no changes needed. These appear in the tree with their key value:
+
+```json
+{ "type": "ElevatedButton", "key": "login_btn", "label": "Login", "x": 20, "y": 400 }
+```
+
+```
+AI calls: tap_widget  key: login_btn
+```
+
+### 3. Coordinates (fallback)
+
+When a widget has no key at all, the agent falls back to screen coordinates from `inspect_ui`. This requires no app code changes but is less stable across layout rebuilds.
+
+```json
+{ "type": "ElevatedButton", "label": "Login", "x": 20, "y": 400, "w": 350, "h": 52 }
+```
+
+```
+Center: cx = 20 + 350/2 = 195,  cy = 400 + 52/2 = 426
+
+AI calls: tap_at  x: 195  y: 426
+AI calls: input_text  x: 16  y: 220  text: "user@example.com"
+```
+
+This works for **any widget** in the tree — buttons, cards, list items, tabs, dropdowns — without touching the app source code.
 
 ---
 
@@ -61,11 +101,7 @@ No `McpMetadataKey`, no widget registry, no wrappers needed.
 ```yaml
 # pubspec.yaml
 dev_dependencies:
-  mcpe2e:
-    git:
-      url: https://github.com/JhonaCodes/mcpe2e.git
-      path: mcpe2e
-      ref: v2.1.0
+  mcpe2e: ^2.1.2
 ```
 
 ```bash
@@ -130,85 +166,98 @@ This delivers a complete interaction guide — core loop, tool decision tree, pa
 
 ### Step 6 — Run your first test
 
-With the app running, ask the AI agent:
+With the app running and the agent connected, a typical test looks like this:
+
+**With McpMetadataKey (recommended):**
 
 ```
-inspect_ui
+1. inspect_ui                                        → see all widgets
+2. input_text  key: auth.email_field  text: "user@example.com"
+3. input_text  key: auth.password_field  text: "secret123"
+4. tap_widget  key: auth.login_button
+5. wait  duration_ms: 1500
+6. assert_text  key: dashboard.greeting  text: "Hello, user"
 ```
 
-The agent receives the full widget tree with coordinates. Then:
+**Without keys (coordinate fallback):**
 
 ```
-tap_at x: 195 y: 420
+1. inspect_ui
+   → Agent sees: TextField "Email" at (16, 220), ElevatedButton "Login" at (20, 400, 350x52)
+2. input_text  x: 16  y: 220  text: "user@example.com"
+3. input_text  x: 16  y: 296  text: "secret123"
+4. tap_at  x: 195  y: 426                           → center of Login button
+5. wait  duration_ms: 1500
+6. inspect_ui                                        → verify new screen content
 ```
 
-Or by widget key if the widget has one registered:
-
-```
-tap_widget key: auth.login_button
-```
+Both approaches work. Keys give stability and enable assertions; coordinates require no app changes.
 
 ---
 
 ## Available Tools (34)
 
+> Most tools use `key` — a `McpMetadataKey` id or existing Flutter key. See [Widget Keys](#widget-keys-mcpmetadatakey).
+> When no key is available, use coordinate-based tools (`tap_at`, `tap_by_label`, `input_text(x, y)`) as fallback.
+
 ### Multi-device
 
-| Tool | Description |
-|------|-------------|
-| `list_devices` | Discover all connected Android devices/emulators, auto-forward ports, ping each one |
-| `select_device` | Switch the active device by serial. All subsequent tools target the selected device |
-| `run_command` | Run any shell command (`flutter run`, `adb`, etc.) with optional `working_dir` and `background` mode |
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `list_devices` | — | Discover all connected Android devices/emulators, auto-forward ports, ping each one |
+| `select_device` | `serial` | Switch the active device by serial. All subsequent tools target the selected device |
+| `run_command` | `command`, `working_dir?`, `background?` | Run any shell command (`flutter run`, `adb`, etc.) |
 
 ### Context and Inspection
 
-| Tool | Description |
-|------|-------------|
-| `get_app_context` | Registered widgets with metadata and capabilities |
-| `list_test_cases` | Alias for `get_app_context` |
-| `inspect_ui` | Full widget tree with values, states, and screen coordinates — no registration needed |
-| `inspect_ui_compact` | Grouped summary (INTERACTIVE / TEXT / OTHER / OVERLAY / LOADING) — use on simple screens to save tokens |
-| `capture_screenshot` | Current screen as PNG image — the agent sees it directly |
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `get_app_context` | — | Registered widgets with metadata and capabilities |
+| `list_test_cases` | — | Alias for `get_app_context` |
+| `inspect_ui` | — | Full widget tree with values, states, and screen coordinates — **no registration needed** |
+| `inspect_ui_compact` | — | Grouped summary (INTERACTIVE / TEXT / OTHER / OVERLAY / LOADING) — saves tokens on simple screens |
+| `capture_screenshot` | — | Current screen as PNG image — the agent sees it directly |
 
 ### Gestures
 
-| Tool | Key parameters | Description |
-|------|---------------|-------------|
-| `tap_widget` | `key` | Single tap on a registered widget |
-| `tap_at` | `x`, `y` | Tap at absolute screen coordinates |
-| `double_tap_widget` | `key` | Double tap |
-| `long_press_widget` | `key`, `duration_ms?` | Long press |
-| `swipe_widget` | `key`, `direction`, `distance?` | Swipe in a direction |
-| `scroll_widget` | `key`, `direction` | Scroll a scrollable widget |
-| `scroll_until_visible` | `key`, `target_key`, `max_attempts?` | Scroll until a widget is visible |
-| `drag_widget` | `key`, `dx`, `dy`, `duration_ms?` | Drag by pixel offset from center |
-| `pinch_widget` | `key`, `scale` | Pinch zoom |
-| `tap_by_label` | `label` | Tap by visible text content |
+| Tool | Parameters | Key | Description |
+|------|-----------|-----|-------------|
+| `tap_widget` | `key` | Required | Tap a widget by key — **recommended** |
+| `double_tap_widget` | `key` | Required | Double tap |
+| `long_press_widget` | `key`, `duration_ms?` | Required | Long press |
+| `swipe_widget` | `key`, `direction`, `distance?` | Required | Swipe in a direction |
+| `scroll_widget` | `key`, `direction` | Required | Scroll a scrollable widget |
+| `scroll_until_visible` | `key`, `target_key`, `max_attempts?` | Required | Scroll until a target widget is visible |
+| `drag_widget` | `key`, `dx`, `dy`, `duration_ms?` | Required | Drag by pixel offset from center |
+| `pinch_widget` | `key`, `scale` | Required | Pinch zoom |
+| `tap_at` | `x`, `y` | — | Tap at screen coordinates (fallback when no key available) |
+| `tap_by_label` | `label` | — | Tap by visible text content (e.g. `"Login"`, `"Submit"`) |
 
 ### Input
 
-| Tool | Key parameters | Description |
-|------|---------------|-------------|
-| `input_text` | `x`, `y`, `text`, `clear_first?`, `skip_focus_tap?` | Type into a TextField. Use `x`/`y` from `inspect_ui` (preferred) or `key` |
-| `clear_text` | `key` | Clear a TextField |
-| `select_dropdown` | `key`, `value` or `index` | Select a dropdown option |
-| `toggle_widget` | `key` | Toggle a Checkbox, Switch, or Radio |
-| `set_slider_value` | `key`, `value` (0.0–1.0) | Set a Slider position |
+| Tool | Parameters | Key | Description |
+|------|-----------|-----|-------------|
+| `input_text` | `key`, `text`, `clear_first?` | Required | Type into a TextField by key — **recommended** |
+| `input_text` | `x`, `y`, `text`, `clear_first?`, `skip_focus_tap?` | — | Type into a TextField by coordinates (fallback) |
+| `clear_text` | `key` | Required | Clear a TextField |
+| `select_dropdown` | `key`, `value` or `index` | Required | Select a dropdown option |
+| `toggle_widget` | `key` | Required | Toggle a Checkbox, Switch, or Radio |
+| `set_slider_value` | `key`, `value` (0.0–1.0) | Required | Set a Slider position |
 
 ### Keyboard and Navigation
 
-| Tool | Key parameters | Description |
-|------|---------------|-------------|
+| Tool | Parameters | Description |
+|------|-----------|-------------|
 | `show_keyboard` | `key` | Request focus and show virtual keyboard |
 | `hide_keyboard` | — | Dismiss the virtual keyboard |
 | `press_back` | — | Navigate back — auto-taps the AppBar back button if visible, falls back to system Back event |
 | `wait` | `duration_ms` | Pause execution (useful after animations or network calls) |
 
-### Assertions
+### Assertions (require registered keys)
 
-| Tool | Key parameters | Description |
-|------|---------------|-------------|
-| `assert_exists` | `key` | Widget is registered |
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `assert_exists` | `key` | Widget is in the tree |
 | `assert_text` | `key`, `text` | Visible text matches expected value |
 | `assert_visible` | `key` | Widget is visible in the viewport |
 | `assert_enabled` | `key` | Widget is enabled |
@@ -216,55 +265,84 @@ tap_widget key: auth.login_button
 | `assert_value` | `key`, `value` | TextField controller value matches |
 | `assert_count` | `key`, `count` | List or column has exactly N children |
 
+> **Without keys**, the agent can still verify values by reading the `inspect_ui` response directly — every Text widget's content, every button's enabled state, and every checkbox's checked state are included in the tree. However, for formal test assertions, register a `McpMetadataKey` on the widget.
+
 ---
 
 ## Widget Keys (McpMetadataKey)
 
-Widget keys are **optional**. The coordinate-based approach (`inspect_ui` → `tap_at`) works for any widget without touching the app code.
+`McpMetadataKey` is the **recommended** way to identify widgets. Registering keys gives:
 
-Keys give stable named access to specific widgets — useful for assertions and test scripts that run repeatedly.
+- **Stable named access** — survives layout changes and screen rebuilds
+- **Assertions** — `assert_text`, `assert_enabled`, `assert_selected`, etc. require a key
+- **Reliable overlay interaction** — dialogs, bottom sheets, drawers shift during animation; keys bypass that
+- **Faster lookup** — direct access instead of tree walk
 
-### How to register a widget key
+If your app already uses `ValueKey<String>`, the agent picks those up automatically from `inspect_ui` — no changes needed.
+
+If a widget has no key at all, the agent falls back to coordinate-based tools (`tap_at`, `input_text(x, y)`). This works but is less stable.
+
+### How to add a key
+
+Assign a `McpMetadataKey` as the widget's `key:`. Both `id` and `widgetType` are required:
 
 ```dart
 import 'package:mcpe2e/mcpe2e.dart';
 
 // Button
 ElevatedButton(
-  key: const McpMetadataKey(id: 'auth.login_button'),
+  key: const McpMetadataKey(
+    id: 'auth.login_button',
+    widgetType: McpWidgetType.button,
+  ),
   onPressed: _login,
   child: const Text('Log in'),
 )
 
 // Text field
 TextField(
-  key: const McpMetadataKey(id: 'auth.email_field'),
+  key: const McpMetadataKey(
+    id: 'auth.email_field',
+    widgetType: McpWidgetType.textField,
+  ),
   controller: _emailController,
 )
 
 // Checkbox
 Checkbox(
-  key: const McpMetadataKey(id: 'settings.dark_mode'),
+  key: const McpMetadataKey(
+    id: 'settings.dark_mode',
+    widgetType: McpWidgetType.checkbox,
+  ),
   value: _darkMode,
   onChanged: _toggle,
 )
 
 // List (for assert_count)
 ListView(
-  key: const McpMetadataKey(id: 'order.list'),
+  key: const McpMetadataKey(
+    id: 'order.list',
+    widgetType: McpWidgetType.list,
+  ),
   children: _items.map(_buildItem).toList(),
 )
 ```
 
-Once registered, the widget appears in `inspect_ui` with a `"key"` field. You can then use key-based tools:
+Once a key is assigned, the widget appears in `inspect_ui` with a `"key"` field. The agent can then use key-based tools:
 
 ```
 tap_widget     key: auth.login_button
 input_text     key: auth.email_field    text: "user@example.com"
 assert_text    key: auth.email_field    text: "user@example.com"
 assert_enabled key: auth.login_button
-assert_count   key: order.list         count: 5
+assert_count   key: order.list          count: 5
 ```
+
+### McpWidgetType values
+
+`widgetType` describes the widget kind and determines its available capabilities:
+
+`button` · `textField` · `text` · `list` · `card` · `image` · `container` · `dropdown` · `checkbox` · `radio` · `switchWidget` · `slider` · `tab` · `custom`
 
 ### Key naming convention
 
@@ -283,33 +361,50 @@ nav.drawer                 Navigation drawer
 snackbar.undo              Undo action in a snackbar
 ```
 
-### When to use keys vs coordinates
+### Resolution priority
 
-| Situation | Recommendation |
-|-----------|---------------|
-| One-off task or exploration | Coordinates (`inspect_ui` → `tap_at`) |
-| Repeated test script | Key — more stable across screen rebuilds |
-| Dialog / bottom sheet / drawer | Key recommended — overlay coords shift during open animation |
-| Dynamic list items | Coordinates or `order.card.{id}` with runtime ID |
-| Assertions in CI | Key — decoupled from layout |
+The agent resolves widgets in this order:
+
+| Priority | Method | When to use |
+|----------|--------|-------------|
+| 1st | **McpMetadataKey** | Default for all testable widgets. Enables assertions, stable across rebuilds |
+| 2nd | **Existing Flutter key** (`ValueKey<String>`, etc.) | App already has keys — no changes needed |
+| 3rd | **Coordinates** (`tap_at`, `input_text(x, y)`) | Fallback for widgets without any key — dynamic lists, third-party widgets, quick exploration |
+
+### When each approach fits
+
+| Scenario | Approach |
+|----------|----------|
+| Any widget you control | `McpMetadataKey` — register it once, use it everywhere |
+| App already has `ValueKey` on widgets | Use them as-is — the agent sees them in `inspect_ui` |
+| Assertions (`assert_text`, `assert_enabled`, etc.) | Key **required** — assertions only work with keys |
+| Dialog / bottom sheet / drawer / snackbar | Key **strongly recommended** — overlay coordinates shift during animation |
+| Dynamic list items from API | `order.card.{id}` with runtime ID, or coordinates as fallback |
+| Third-party widgets you can't modify | Coordinates via `inspect_ui` → `tap_at` |
+| Quick one-off exploration | Coordinates — fast, no code changes |
 
 ### Recommended: add keys to overlaid widgets
 
-The coordinate-based approach works for most of the app. However, we recommend adding `McpMetadataKey` to widgets that appear as layers on top of the main screen — dialogs, bottom sheets, drawers, and snackbars. Their coordinates can shift during the open animation, making `tap_at` less reliable.
+Dialogs, bottom sheets, drawers, and snackbars are rendered in a separate overlay layer. Their coordinates can shift during the open animation, making `tap_at` less reliable. Adding a `McpMetadataKey` to these surfaces lets the agent use `tap_widget` instead of chasing coordinates.
 
 ```dart
-// Confirmation dialog
+// Confirmation dialog actions
 AlertDialog(
-  key: const McpMetadataKey(id: 'modal.confirm.delete'),
   title: const Text('Delete item?'),
   actions: [
     TextButton(
-      key: const McpMetadataKey(id: 'modal.confirm.cancel'),
+      key: const McpMetadataKey(
+        id: 'modal.confirm.cancel',
+        widgetType: McpWidgetType.button,
+      ),
       onPressed: () => Navigator.pop(context),
       child: const Text('Cancel'),
     ),
     ElevatedButton(
-      key: const McpMetadataKey(id: 'modal.confirm.ok'),
+      key: const McpMetadataKey(
+        id: 'modal.confirm.ok',
+        widgetType: McpWidgetType.button,
+      ),
       onPressed: _delete,
       child: const Text('Delete'),
     ),
@@ -320,31 +415,17 @@ AlertDialog(
 showModalBottomSheet(
   context: context,
   builder: (_) => ElevatedButton(
-    key: const McpMetadataKey(id: 'sheet.checkout.submit'),
+    key: const McpMetadataKey(
+      id: 'sheet.checkout.submit',
+      widgetType: McpWidgetType.button,
+    ),
     onPressed: _submit,
     child: const Text('Confirm'),
   ),
 );
-
-// Navigation drawer
-Drawer(
-  key: const McpMetadataKey(id: 'nav.drawer'),
-  child: ...,
-)
-
-// Snackbar action
-ScaffoldMessenger.of(context).showSnackBar(
-  SnackBar(
-    action: SnackBarAction(
-      key: const McpMetadataKey(id: 'snackbar.undo'),
-      label: 'Undo',
-      onPressed: _undo,
-    ),
-  ),
-);
 ```
 
-This is a suggestion, not a requirement. The agent can still interact with these widgets using `tap_at` and coordinates from `inspect_ui`.
+Without keys, the agent can still interact with overlay widgets using `tap_at` after calling `inspect_ui` — but it may need a `wait` to let the animation finish, and coordinates may shift between runs.
 
 ---
 

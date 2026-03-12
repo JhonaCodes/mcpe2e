@@ -15,7 +15,7 @@ mcpe2e  (Flutter dev_dependency inside your app)
 Flutter app on real device / simulator
 ```
 
-Version: **1.1.6**
+Version: **2.1.2**
 
 ---
 
@@ -95,7 +95,7 @@ export TESTBRIDGE_URL=http://localhost:7778
 
 ---
 
-## MCP Tools (32 total)
+## MCP Tools (34 total)
 
 ### Multi-device
 
@@ -112,6 +112,7 @@ export TESTBRIDGE_URL=http://localhost:7778
 | `get_app_context` | Returns registered widgets with metadata and capabilities |
 | `list_test_cases` | Lists all registered test cases in the app |
 | `inspect_ui` | Full widget tree with types, labels, values, states, and coordinates |
+| `inspect_ui_compact` | Grouped summary (INTERACTIVE / TEXT / OTHER / OVERLAY / LOADING) — use on simple screens to save tokens |
 | `capture_screenshot` | Returns a real PNG screenshot. Android: ADB screencap (debug and release). Desktop: Flutter layer tree (debug/profile only) |
 
 ### Gestures
@@ -133,7 +134,7 @@ export TESTBRIDGE_URL=http://localhost:7778
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `input_text` | `key`, `text`, `clear_first?` | Type text into a TextField |
+| `input_text` | `x`, `y`, `text`, `clear_first?`, `skip_focus_tap?` | Type into a TextField. Use `x`/`y` from `inspect_ui` (preferred) or `key` |
 | `clear_text` | `key` | Clear the text content of a widget |
 | `select_dropdown` | `key`, `value` or `index` | Select an option from a dropdown widget |
 | `toggle_widget` | `key` | Toggle a Checkbox or Switch |
@@ -162,9 +163,17 @@ export TESTBRIDGE_URL=http://localhost:7778
 
 ---
 
-## Coordinate-based testing with tap_at
+## Widget resolution priority
 
-`tap_at` is the primary approach for tapping widgets without needing a registered key. Use `inspect_ui` first to get the widget's position and size, then calculate the center and call `tap_at`.
+The agent resolves widgets in this order:
+
+1. **McpMetadataKey** (recommended) — register keys for stable named access. Enables assertions.
+2. **Existing Flutter keys** (`ValueKey<String>`) — picked up automatically from `inspect_ui`.
+3. **Coordinates** (fallback) — use `tap_at` / `input_text(x, y)` when no key is available.
+
+### Coordinate fallback with tap_at
+
+When a widget has no key, use `inspect_ui` to get its position, calculate the center, and call `tap_at`:
 
 ```
 inspect_ui response:
@@ -175,13 +184,13 @@ tap_at:
   y = 400 + 56/2 = 428
 ```
 
-This approach works on any widget in the tree, including dynamic lists, cards without keys, and third-party components.
+This works on any widget in the tree — dynamic lists, third-party components, widgets without keys — but is less stable than key-based access.
 
 ---
 
 ## Build from Source
 
-Requires Dart SDK >= 3.0.
+Requires Dart SDK >= 3.5.0.
 
 ```bash
 git clone https://github.com/JhonaCodes/mcpe2e
@@ -197,4 +206,5 @@ dart compile exe bin/mcp_server.dart -o ~/.local/bin/mcpe2e_server
 - Flutter library: [mcpe2e](https://github.com/JhonaCodes/mcpe2e/tree/main/mcpe2e)
 - Integration guide: [docs/integration-guide.md](../docs/integration-guide.md)
 - Test flow examples: [docs/test-flow-example.md](../docs/test-flow-example.md)
+- Writing tests guide: [docs/writing-tests.md](../docs/writing-tests.md)
 - Changelog: [CHANGELOG.md](./CHANGELOG.md)

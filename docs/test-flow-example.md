@@ -1,6 +1,6 @@
 # Test Flow Examples
 
-Complete walkthroughs of AI-driven E2E test sessions using coordinate-based testing with `inspect_ui` + `tap_at`. No widget keys or registration required.
+Complete walkthroughs of AI-driven E2E test sessions. Examples show all three widget resolution strategies: `McpMetadataKey` (recommended), existing Flutter keys, and coordinate fallback via `inspect_ui` + `tap_at`.
 
 ---
 
@@ -34,20 +34,20 @@ Response:
 
 The AI can see the login button is disabled (`"enabled": false`). It must fill both fields first.
 
-### Step 2: Type the email
+### Step 2: Type the email (using coordinates from Step 1)
 
 ```
 AI calls: input_text
-  key: "auth.email_field"
-  text: "user@example.com"
+  x: 16  y: 200  text: "user@example.com"
+  ← TextField "Email" coordinates from inspect_ui
 ```
 
 ### Step 3: Type the password
 
 ```
 AI calls: input_text
-  key: "auth.password_field"
-  text: "secret123"
+  x: 16  y: 276  text: "secret123"
+  ← TextField "Password" coordinates from inspect_ui
 ```
 
 ### Step 4: Inspect again to confirm the button is now enabled
@@ -213,26 +213,30 @@ The screenshot and the tree data together provide a complete record of the scree
 
 ---
 
-## Summary: coordinate-based workflow
+## Summary: widget resolution priority
 
-Every test follows the same pattern:
+The agent resolves widgets in this order:
 
 ```
-inspect_ui
-  → read widget type, label, x, y, w, h
-  → calculate center: cx = x + w/2, cy = y + h/2
+1. McpMetadataKey (recommended)
+   → tap_widget key: auth.login_button
+   → assert_text key: dashboard.greeting text: "Hello"
+   Stable, named, enables assertions.
 
-tap_at x: cx y: cy
-  → real tap dispatched via GestureBinding
+2. Existing Flutter keys (ValueKey<String>)
+   → tap_widget key: login_btn
+   Picked up automatically from inspect_ui.
 
-wait duration_ms: N
-  → allow animations and navigation to settle
-
-inspect_ui
-  → verify new screen content or text values
-
-capture_screenshot
-  → visual confirmation
+3. Coordinates (fallback)
+   → inspect_ui → read x, y, w, h → calculate center
+   → tap_at x: cx y: cy
+   Works for any widget without keys.
 ```
 
-This works for any widget in the tree: buttons, cards, list items, tabs, chips, icons. No keys. No registration. No app code changes required.
+Every test follows the same core loop:
+
+```
+inspect_ui → identify target → act (tap/input/scroll) → wait → verify (assert or inspect_ui)
+```
+
+Use key-based tools when keys are available. Fall back to coordinates for widgets without keys (dynamic lists, third-party components, quick exploration).

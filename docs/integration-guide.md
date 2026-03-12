@@ -20,11 +20,7 @@ Add `mcpe2e` as a dev dependency in your app's `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  mcpe2e:
-    git:
-      url: https://github.com/JhonaCodes/mcpe2e.git
-      ref: v1.1.6
-      path: mcpe2e
+  mcpe2e: ^2.1.2
 ```
 
 ```bash
@@ -105,11 +101,24 @@ If `/ping` responds, the AI agent can now reach your app.
 
 ## Step 6: Run your first test
 
-The recommended approach is **coordinate-based**: use `inspect_ui` to find a widget's position on screen, then use `tap_at` to tap it. No widget keys or registration required.
+### With McpMetadataKey (recommended)
 
-### Example: tap the login button
+If you registered keys on your widgets (see Step 6b below), the agent uses them directly:
 
-**Inspect the screen first:**
+```
+AI calls: inspect_ui                                      → see all widgets and their keys
+AI calls: input_text  key: auth.email_field  text: "user@example.com"
+AI calls: input_text  key: auth.password_field  text: "secret123"
+AI calls: tap_widget  key: auth.login_button
+AI calls: wait  duration_ms: 2000
+AI calls: assert_text  key: dashboard.greeting  text: "Hello, user"
+```
+
+Keys give stable named access, enable assertions, and survive layout changes.
+
+### Without keys (coordinate fallback)
+
+If no keys are registered, the agent falls back to coordinates from `inspect_ui`:
 
 ```
 AI calls: inspect_ui
@@ -119,7 +128,6 @@ Response (excerpt):
 
 ```json
 {
-  "widget_count": 12,
   "widgets": [
     { "type": "TextField", "hint": "Email", "x": 16, "y": 220, "w": 358, "h": 56 },
     { "type": "TextField", "hint": "Password", "x": 16, "y": 296, "w": 358, "h": 56 },
@@ -128,34 +136,21 @@ Response (excerpt):
 }
 ```
 
-**Type in the fields and tap the button:**
-
 ```
-AI calls: input_text
-  key: "auth.email_field"
-  text: "user@example.com"
-
-AI calls: input_text
-  key: "auth.password_field"
-  text: "secret123"
-
-AI calls: tap_at
-  x: 196   ← 20 + 353/2
-  y: 428   ← 400 + 56/2
-
-AI calls: wait
-  duration_ms: 2000
-
-AI calls: capture_screenshot
+AI calls: input_text  x: 16  y: 220  text: "user@example.com"
+AI calls: input_text  x: 16  y: 296  text: "secret123"
+AI calls: tap_at  x: 196  y: 428   ← center of Login button (20+353/2, 400+56/2)
+AI calls: wait  duration_ms: 2000
+AI calls: inspect_ui                ← verify new screen content
 ```
 
-The AI receives the screenshot and can visually confirm the result, or call `inspect_ui` again to check the new screen content.
+This works but is less stable — coordinates change if the layout changes.
 
 ---
 
-## Optional: register keys for frequently tested widgets
+## Step 6b: Register keys on your widgets (recommended)
 
-If some widgets are tested repeatedly, you can register them with a `McpMetadataKey` so the AI can find them by name via `tap_widget` or `assert_exists` without needing to inspect coordinates each time.
+Register `McpMetadataKey` on widgets you want to test. This is the recommended approach — it enables assertions, survives layout changes, and gives the agent fast, named access.
 
 ```dart
 import 'package:mcpe2e/mcpe2e.dart';

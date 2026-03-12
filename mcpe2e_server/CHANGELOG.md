@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.2.0] - 2026-03-13
+
+### Added
+- **`mcpe2e_expert` master prompt**: single comprehensive prompt that combines the full agent
+  protocol, test writing guide, and widget key conventions into one request. Agents call
+  `prompts/get { "name": "mcpe2e_expert" }` once and receive the complete reference —
+  widget resolution priority, all 34 tools with decision trees, SCRIPT/GOAL test modes,
+  McpMetadataKey naming convention, performance rules, timing heuristics, and error recovery.
+- `get_app_context` tool description now hints agents to request the `mcpe2e_expert` prompt.
+
+### Changed
+- `prompts/list` now returns `mcpe2e_expert` as the first and primary prompt. The three
+  individual prompts (`mcpe2e_workflow`, `mcpe2e_writing_tests`, `mcpe2e_widget_keys`) remain
+  available but their descriptions now redirect to `mcpe2e_expert` for the full guide.
+- Standardized all documentation to English across READMEs, CLAUDE.md, integration guide,
+  test flow examples, and writing tests guide.
+- All documentation now reflects the correct widget resolution priority:
+  McpMetadataKey (1st) → existing Flutter keys (2nd) → coordinates (fallback) → screenshot (last resort).
+- Tool descriptions updated: `tap_at` marked as fallback, `input_text` prioritizes key-based usage,
+  `toggle_widget` recommends key mode first.
+- All McpMetadataKey examples in docs include required `widgetType` parameter.
+- Dependency examples changed from git-based to pub.dev `^2.1.2` format.
+
+---
+
 ## [2.1.2] - 2026-03-11
 
 ### Added
@@ -115,14 +140,14 @@
 ## [1.1.9] - 2026-03-10
 
 ### Changed
-- Version sync con mcpe2e v1.1.9 — docs overlay keys recommendation.
+- Version sync with mcpe2e v1.1.9 — docs overlay keys recommendation.
 
 ---
 
 ## [1.1.8] - 2026-03-10
 
 ### Changed
-- Version sync con mcpe2e v1.1.8 — `McpNavigatorObserver` para route real.
+- Version sync with mcpe2e v1.1.8 — `McpNavigatorObserver` for real route tracking.
 
 ---
 

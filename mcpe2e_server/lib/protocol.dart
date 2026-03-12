@@ -151,23 +151,33 @@ class McpServer {
           'result': {
             'prompts': [
               {
+                'name': 'mcpe2e_expert',
+                'description':
+                    '⭐ START HERE — Complete mcpe2e expert guide. Covers: widget resolution priority '
+                    '(keys > coordinates > screenshot), all 34 tools, agent protocol, interaction patterns, '
+                    'how to write SCRIPT/GOAL tests, widget key conventions, performance rules, and error recovery. '
+                    'Request this prompt BEFORE your first E2E interaction.',
+                'arguments': [],
+              },
+              {
                 'name': 'mcpe2e_workflow',
                 'description':
-                    'Complete Flutter E2E interaction guide: core loop, tool decision tree, '
-                    'form/dialog/navigation/custom-widget patterns, error recovery and agent protocol. '
-                    'Request this prompt before starting any E2E task to understand how to use the tools effectively.',
+                    'Agent protocol only: core loop, tool decision tree, interaction patterns, error recovery. '
+                    'Use mcpe2e_expert instead for the full guide.',
                 'arguments': [],
               },
               {
                 'name': 'mcpe2e_writing_tests',
                 'description':
-                    'How to write E2E tests: SCRIPT vs GOAL modes, templates, key context tables, timing heuristics.',
+                    'Test writing only: SCRIPT vs GOAL modes, templates, timing heuristics. '
+                    'Use mcpe2e_expert instead for the full guide.',
                 'arguments': [],
               },
               {
                 'name': 'mcpe2e_widget_keys',
                 'description':
-                    'Widget key convention for reliable E2E testing: naming, McpMetadataKey, when to use keys vs coordinates.',
+                    'Widget keys only: McpMetadataKey, naming convention, keys vs coordinates. '
+                    'Use mcpe2e_expert instead for the full guide.',
                 'arguments': [],
               },
             ],
@@ -178,6 +188,10 @@ class McpServer {
         final promptName =
             (req['params'] as Map<String, dynamic>?)?['name'] as String? ?? '';
         final (String desc, String content) = switch (promptName) {
+          'mcpe2e_expert' => (
+            'mcpe2e Expert E2E Testing Guide — complete reference for AI agents',
+            kMcpe2eExpertSkill,
+          ),
           'mcpe2e_workflow' => (
             'mcpe2e Flutter E2E workflow guide and agent protocol',
             kMcpe2eWorkflowSkill,

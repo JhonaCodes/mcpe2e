@@ -309,10 +309,9 @@ identify regressions: if `happy_path` fails, skip the rest until it is fixed.
 
 ## Section 10 — Suggested: widget keys for overlaid surfaces
 
-The coordinate-based approach (`inspect_ui` → `tap_at`) works for the entire app without
-any widget registration. However, for widgets that appear as a layer on top of the main
-screen — dialogs, bottom sheets, drawers, and snackbars — we suggest adding a
-`McpMetadataKey`. These surfaces are rendered in a separate overlay entry; their
+`McpMetadataKey` is recommended for all testable widgets. It is **especially important**
+for widgets that appear as a layer on top of the main screen — dialogs, bottom sheets,
+drawers, and snackbars. These surfaces are rendered in a separate overlay entry; their
 coordinates can shift during animations, making coordinate-based taps less reliable.
 
 With a key, the LLM uses `tap_widget key: "modal.confirm.submit"` instead of calculating
@@ -331,19 +330,19 @@ and chasing coordinates through `inspect_ui` while the overlay is animating in.
 ```dart
 // Bottom sheet submit button
 ElevatedButton(
-  key: const McpMetadataKey(id: 'sheet.bid.submit'),
+  key: const McpMetadataKey(id: 'sheet.bid.submit', widgetType: McpWidgetType.button),
   onPressed: _submitBid,
   child: const Text('Place Bid'),
 )
 
 // AlertDialog confirm action
 TextButton(
-  key: const McpMetadataKey(id: 'modal.confirm.delete'),
+  key: const McpMetadataKey(id: 'modal.confirm.delete', widgetType: McpWidgetType.button),
   onPressed: _confirmDelete,
   child: const Text('Delete'),
 )
 ```
 
-For the main screen body (lists, forms, cards) coordinate-based interaction is preferred
-since those widgets are stable in the viewport and keys would add unnecessary noise to the
-widget tree.
+For the main screen body (lists, forms, cards), `McpMetadataKey` is the recommended approach
+for widgets you control. Use coordinates as a fallback for dynamic list items or third-party
+widgets that cannot have keys assigned.
