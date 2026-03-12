@@ -21,7 +21,7 @@
 - Tool descriptions updated: `tap_at` marked as fallback, `input_text` prioritizes key-based usage,
   `toggle_widget` recommends key mode first.
 - All McpMetadataKey examples in docs include required `widgetType` parameter.
-- Dependency examples changed from git-based to pub.dev `^2.1.2` format.
+- Dependency examples changed from git-based to pub.dev `^2.2.0` format.
 
 ---
 

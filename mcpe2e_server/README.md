@@ -15,7 +15,7 @@ mcpe2e  (Flutter dev_dependency inside your app)
 Flutter app on real device / simulator
 ```
 
-Version: **2.1.2**
+Version: **2.2.0**
 
 ---
 

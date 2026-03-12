@@ -20,7 +20,7 @@ Add `mcpe2e` as a dev dependency in your app's `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  mcpe2e: ^2.1.2
+  mcpe2e: ^2.2.0
 ```
 
 ```bash

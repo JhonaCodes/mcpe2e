@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.0] - 2026-03-13
+
+### Changed
+- Version bump to 2.2.0 (sync with mcpe2e_server v2.2.0 — mcpe2e_expert master prompt,
+  docs standardized to English, widget resolution priority corrected).
+
+---
+
 ## [2.1.2] - 2026-03-11
 
 ### Changed

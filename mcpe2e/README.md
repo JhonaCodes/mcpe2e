@@ -1,6 +1,6 @@
 # mcpe2e — Flutter Library
 
-[![version](https://img.shields.io/badge/version-2.1.2-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v2.1.2)
+[![version](https://img.shields.io/badge/version-2.2.0-blue)](https://github.com/JhonaCodes/mcpe2e/releases/tag/v2.2.0)
 
 mcpe2e is a Flutter library that embeds a lightweight HTTP server inside your app. When an AI agent (Claude, Codex, Gemini) calls an MCP tool, `mcpe2e_server` translates it to an HTTP request that reaches this server, which then executes the corresponding gesture or assertion on the live widget tree.
 
@@ -26,7 +26,7 @@ Add as a `dev_dependency`:
 ```yaml
 # pubspec.yaml
 dev_dependencies:
-  mcpe2e: ^2.1.2
+  mcpe2e: ^2.2.0
 ```
 
 ```bash
