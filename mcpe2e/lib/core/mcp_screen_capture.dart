@@ -83,10 +83,25 @@ class McpScreenCapture {
       final pixelRatio = renderView.flutterView.devicePixelRatio;
       final logicalSize = renderView.size;
 
-      // Render the layer to an in-memory image
+      // `renderView.debugLayer` is the RenderView's OWN root layer, which
+      // Flutter creates as a TransformLayer whose transform already IS the
+      // device pixel ratio scale (RenderView._updateMatricesAndCreateNewRootLayer,
+      // ViewConfiguration.toMatrix). Passing `pixelRatio` to `toImage()` on
+      // top of that double-applies the device pixel ratio: the output image's
+      // dimensions come out correct (logicalSize * pixelRatio, matching the
+      // physical screen), which is why this looked fine from the returned
+      // width/height, but the actual content is scaled and positioned as if
+      // drawn onto a canvas pixelRatio times larger again, so only a small
+      // fragment near one corner survives inside the correctly-sized buffer.
+      //
+      // The fix: since the layer's own transform already applies pixelRatio,
+      // bounds must be given in the post-transform (physical) coordinate
+      // space, and the additional pixelRatio passed to toImage() must be 1.0
+      // so it isn't applied a second time.
+      final physicalSize = logicalSize * pixelRatio;
       final image = await layer.toImage(
-        Offset.zero & logicalSize,
-        pixelRatio: pixelRatio,
+        Offset.zero & physicalSize,
+        pixelRatio: 1.0,
       );
 
       // Convert to PNG
